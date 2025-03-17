@@ -1,0 +1,37 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        // {
+        //     "name": "Python Debugger: Current File with Arguments",
+        //     "type": "debugpy",
+        //     "request": "launch",
+        //     "program": "${file}",
+        //     "console": "integratedTerminal",
+        //     "args": "${command:pickArgs}"
+        // }
+
+        {
+            "name": "FastAPI Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+              "main:app",           // Must match your file (main.py) and object (app)
+              "--host",
+              "0.0.0.0",
+              "--port",
+              "8000",
+              "--reload"            // Optional
+            ],
+            "jinja": true,
+            "justMyCode": false,    // Debug into libraries if needed
+            "cwd": "${workspaceFolder}",  // Ensure working directory is project root
+            "env": {
+              "PYTHONPATH": "${workspaceFolder}"  // Help module resolution
+            }
+          }
+    ]
+}
