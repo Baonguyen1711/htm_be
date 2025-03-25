@@ -9,3 +9,6 @@ class UpdateQuestionRequest(BaseModel):
     answer: str | None = None
     type: str | None = None
     imgUrl: str | None = None
+
+class Answer(BaseModel):
+    answer: str

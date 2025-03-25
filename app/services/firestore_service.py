@@ -1,6 +1,8 @@
 from ..database import db
 import datetime
 from google.cloud import firestore
+import random
+from datetime import datetime, timedelta
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -35,8 +37,6 @@ def get_test_by_test_id(test_id):
 
 def upload_test_to_firestore(rounds, questions, test_id):
 
-    # Bắt đầu đo thời gian
-    start_time = datetime.datetime.now()
 
 
     # 2. Upload câu hỏi vào collection "questions" với ID ngẫu nhiên
@@ -61,7 +61,7 @@ def upload_test_to_firestore(rounds, questions, test_id):
             "type": q.get("type"),
             "difficulty": q.get("difficulty"),
             "packetName": q.get("packetName"),
-            "createdAt": firestore.SERVER_TIMESTAMP
+            # "createdAt": firestore.SERVER_TIMESTAMP
         }
         batch.set(question_ref, question_data)
         uploaded_questions += 1
@@ -73,7 +73,7 @@ def upload_test_to_firestore(rounds, questions, test_id):
             batch = db.batch()  # Reset batch
 
     # Tính thời gian thực hiện
-    duration = (datetime.datetime.now() - start_time).total_seconds()
+
 
     return {
         "message": f"Upload thành công bộ đề {test_id}",
@@ -134,7 +134,7 @@ def get_test_by_test_id(test_id):
 def upload_test_to_firestore(rounds, questions, test_id):
 
     # Bắt đầu đo thời gian
-    start_time = datetime.datetime.now()
+
 
 
     # 2. Upload câu hỏi vào collection "questions" với ID ngẫu nhiên
@@ -159,7 +159,7 @@ def upload_test_to_firestore(rounds, questions, test_id):
             "type": q.get("type"),
             "difficulty": q.get("difficulty"),
             "packetName": q.get("packetName"),
-            "createdAt": firestore.SERVER_TIMESTAMP
+            # "createdAt": firestore.SERVER_TIMESTAMP
         }
         batch.set(question_ref, question_data)
         uploaded_questions += 1
@@ -171,7 +171,7 @@ def upload_test_to_firestore(rounds, questions, test_id):
             batch = db.batch()  # Reset batch
 
     # Tính thời gian thực hiện
-    duration = (datetime.datetime.now() - start_time).total_seconds()
+
 
     return {
         "message": f"Upload thành công bộ đề {test_id}",
@@ -223,7 +223,112 @@ def update_question(question_id: str, updated_data: dict):
     except Exception as e:
         logging.error(f"Unexpected error updating question {question_id}: {e}")
         return {"error": f"An unexpected error occurred: {e}"}
-
     
+def create_room(owner_id, duration_in_hours):
+    try:
+        room_id = None
+        while True:
+            room_id = str(random.randint(100000, 999999))
+            room_ref = db.collection("rooms").document(room_id)
+            doc_snapshot = room_ref.get()
+            logging.info(f"doc_snapshot: {doc_snapshot}")
+            if not doc_snapshot.exists:
+                break  # Room ID is unique
+
+       # Expiration time
+        expires_at = datetime.utcnow() + timedelta(hours=duration_in_hours)
+
+        # Create room document in Firestore
+        db.collection("rooms").document(room_id).set({
+            "ownerId": owner_id,
+            # "createdAt": firestore.SERVER_TIMESTAMP,
+            "expiresAt": expires_at,
+            "isActive": True
+        })
+
+        return {"roomId": room_id, "isActive": True,"message": "Room created successfully!"}
+    except Exception as e:
+        return {"error": f"An error occurred: {e}"}
+
+
+def get_rooms_by_user_id(owner_id):
+    try:
+        # Query the rooms collection for documents with the given owner_id
+        rooms_ref = db.collection("rooms").where("ownerId", "==", owner_id)
+        rooms_docs = rooms_ref.stream()  # Use stream() to handle multiple documents
+        
+        # Initialize the result list
+        rooms = []
+        
+        # Iterate through the documents and extract room id and isActive
+        for doc in rooms_docs:
+            room_data = doc.to_dict()
+            rooms.append({
+                "roomId": doc.id,          # Document ID (Room ID)
+                "isActive": room_data.get("isActive", False)  # Fetch isActive, defaulting to False if missing
+            })
+
+        # Check if no rooms were found
+        if not rooms:
+            return {"error": "No rooms found for this user."}
+
+        return {"rooms": rooms}
+
+    except Exception as e:
+        # Handle exceptions and return an error message
+        return {"error": f"An error occurred: {str(e)}"}
+    
+def deactivate_room(owner_id: str, room_id: str):
+    try:
+        # Reference the specific room document by ID
+        room_ref = db.collection("rooms").document(room_id)
+        room_doc = room_ref.get()  # Fetch the document
+
+        # Check if the room exists
+        if not room_doc.exists:
+            logging.error(f"Room with ID {room_id} not found.")
+            return {"error": f"Room with ID {room_id} not found."}
+
+        # Check if the room is owned by the specified owner
+        room_data = room_doc.to_dict()  # Convert document to a dictionary
+        if room_data.get("ownerId") != owner_id:
+            logging.error(f"Unauthorized: Owner ID {owner_id} does not match.")
+            return {"error": "Unauthorized: You do not have permission to deactivate this room."}
+
+        # Deactivate the room by setting "isActive" to False
+        room_ref.update({"isActive": False})
+        logging.info(f"Room {room_id} deactivated successfully.")
+        return {"message": f"Room {room_id} deactivated successfully."}
+
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return {"error": f"An error occurred: {e}"}
+    
+
+def join_room(room_id, user):
+    try:
+        # Query the rooms collection for documents with the given owner_id
+        rooms_ref = db.collection("rooms").where("roomId", "==", room_id)
+        rooms_docs = rooms_ref.stream()  # Use stream() to handle multiple documents
+        
+        # Initialize the result list
+        rooms = []
+        
+        # Iterate through the documents and extract room id and isActive
+        for doc in rooms_docs:
+            room_data = doc.to_dict()
+            room_data.userList.append({
+                user
+            })
+
+        # Check if no rooms were found
+        if not rooms:
+            return {"error": "No rooms found for this user."}
+
+        return {"rooms": rooms}
+
+    except Exception as e:
+        # Handle exceptions and return an error message
+        return {"error": f"An error occurred: {str(e)}"}
 
 
