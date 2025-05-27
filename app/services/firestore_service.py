@@ -4,6 +4,7 @@ from google.cloud import firestore
 import random
 from datetime import datetime, timedelta
 import logging
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -179,6 +180,46 @@ def upload_test_to_firestore(rounds, questions, test_id):
         "total_questions": len(questions),
     }
 
+def upload_single_question_to_firestore(question):
+    """
+    Upload one question to Firestore.
+    
+    Parameters:
+        rounds (int or str): The round number.
+        question (dict): A dictionary representing the question.
+        test_id (str): The test ID this question belongs to.
+    
+    Returns:
+        dict: Information about the uploaded question.
+    """
+    # Tạo document với ID ngẫu nhiên cho câu hỏi
+    question_ref = db.collection("questions").document()
+    question_id = question_ref.id
+
+    # Dữ liệu câu hỏi
+    question_data = {
+        "stt": question.get("stt"),
+        "questionId": question_id,
+        "testId": question["testId"],
+        "round": question["answer"],
+        "question": question["question"],
+        "answer": question["answer"],
+        "imgUrl": question.get("imgUrl"),
+        "type": question.get("type"),
+        "difficulty": question.get("difficulty"),
+        "packetName": question.get("packetName"),
+        # "createdAt": firestore.SERVER_TIMESTAMP
+    }
+
+    # Upload câu hỏi
+    question_ref.set(question_data)
+
+    return {
+        "message": f"Upload thành công câu hỏi {question_id}",
+        "question_id": question_id,
+        "test_id": question["testId"]
+    }
+
 def get_test_name_by_user_id(user_id):
     try:
         test_ref = (db.collection("tests")
@@ -269,8 +310,8 @@ def get_rooms_by_user_id(owner_id):
             })
 
         # Check if no rooms were found
-        if not rooms:
-            return {"error": "No rooms found for this user."}
+        # if not rooms:
+        #     return {"error": "No rooms found for this user."}
 
         return {"rooms": rooms}
 
@@ -330,5 +371,19 @@ def join_room(room_id, user):
     except Exception as e:
         # Handle exceptions and return an error message
         return {"error": f"An error occurred: {str(e)}"}
+    
+def save_file_key_for_user(user_id: str, file_key: str, description: str = None):
+    
+    files_collection = db.collection("users").document(user_id).collection("uploadedFiles")
+    file_doc = files_collection.document()  # auto-generated ID
+
+    file_data = {
+        "key": file_key,
+        "uploadedAt": firestore.SERVER_TIMESTAMP,
+    }
+    if description:
+        file_data["description"] = description
+
+    file_doc.set(file_data)
 
 

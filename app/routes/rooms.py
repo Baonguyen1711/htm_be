@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException, File, UploadFile, Body
 from fastapi import FastAPI, Depends, UploadFile
 from starlette.requests import Request
 from firebase_admin import auth
 from ..services.auth_service import verify_token
 from google.cloud import firestore
 from collections import defaultdict
-from ..models.questions import UpdateQuestionRequest
+from ..models.questions import UpdateQuestionRequest, Grid
 from ..models.users import User
 from fastapi.encoders import jsonable_encoder
 import shutil
@@ -14,8 +14,10 @@ from io import BytesIO
 import logging
 import traceback
 from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room
+from app.services.realtime_service import set_next_round
 from firebase_admin import db
 import time
+from typing import List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ async def join_room(room_id: str, request: Request, user_info: User):
         
         return {
             "message": f"User {authenticated_uid} joined room {room_id}",
+            "userId": {authenticated_uid},
             "players": players_info
         }
     except Exception as e:
@@ -106,9 +109,10 @@ async def join_room(room_id: str, request: Request, user_info: User):
     
 
 @room_routers.post("/api/room/create")
-def create_new_room(expired_time: int, request: Request):
-    user = request.state.user  
-    authenticated_uid = user.get("uid")  
+def create_new_room(expired_time: int, request: Request): 
+
+    user = request.state.user
+    authenticated_uid = user["uid"]
 
     if not authenticated_uid:
         raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
@@ -139,20 +143,58 @@ async def deactivate_room_api(room_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Error deactivating room: {str(e)}")
     
 # API Endpoint: Fetch rooms by user ID
+@room_routers.post("/api/rooms/round")
+async def go_to_next_round(room_id: str, round: str,grid: Grid):
+    try:
+        # user = request.state.user
+        # authenticated_uid = user["uid"] 
+        # if not authenticated_uid:
+        #     raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+        # try:
+            
+        #     logger.info("grid", grid)
+            
+
+        #     # Tiếp tục logic của bạn
+        
+        # except Exception as e:
+        #     logger.error(f"Error creating Firebase reference: {str(e)}")
+        #     logger.error(f"Full traceback: {traceback.format_exc()}")
+        #     raise  # Ném lại lỗi để xử lý ở tầng trên nếu cần
+
+        try:
+            set_next_round(room_id, round, grid.grid)
+            logger.info("set_next_round successfully")
+            
+
+            # Tiếp tục logic của bạn
+        
+        except Exception as e:
+            logger.error(f"Error creating Firebase reference: {str(e)}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise  # Ném lại lỗi để xử lý ở tầng trên nếu cần
+        
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting room: {str(e)}")
+    
+# API Endpoint: Fetch rooms by user ID
 @room_routers.get("/api/rooms")
 async def get_rooms(request: Request):
     try:
-        user = request.state.user  
-        authenticated_uid = user.get("uid")  
+        user = request.state.user
+        authenticated_uid = user["uid"] 
         if not authenticated_uid:
             raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
         
         result = get_rooms_by_user_id(authenticated_uid)
-        if "error" in result:
-            raise HTTPException(status_code=404, detail=result["error"])
+        # if "error" in result:
+        #     raise HTTPException(status_code=404, detail=result["error"])
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting room: {str(e)}")
+    
+
     
 
 

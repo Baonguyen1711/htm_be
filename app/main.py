@@ -1,6 +1,12 @@
 from fastapi import FastAPI
 from app.routes.tests import test_routers
 from app.routes.rooms import room_routers
+from app.routes.auth import auth_routers
+from app.routes.buzz import buzz_routers
+from app.services.s3_service import S3Service
+from app.services.sound_service import SoundService
+from app.routes.s3 import S3Router
+from app.routes.sound import SoundRouter
 from fastapi.middleware.cors import CORSMiddleware
 # from .middleware.auth import AuthMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -34,10 +40,19 @@ firebase_admin.initialize_app(cred, {
 })
 
 
+s3_service = S3Service()  
+sound_service = SoundService()
 
+sound_router = SoundRouter(sound_service)
+s3_router = S3Router(s3_service)
+
+app.include_router(s3_router.router)
+app.include_router(sound_router.router)
 # Đăng ký router từ module routes
 app.include_router(test_routers)
 app.include_router(room_routers)
+app.include_router(auth_routers)
+app.include_router(buzz_routers)
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,48 +73,23 @@ async def dispatch(request: Request, call_next):
     # Skip middleware for preflight OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
-    # Skip middleware for public routes
-    if request.url.path in ["/docs"]:
+    if request.url.path in ["/api/auth", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
-    # Extract the Authorization header
-    auth_header = request.headers.get("authorization")
-    # logger.info(f"auth_header: {auth_header}")
-    if not auth_header or not auth_header.startswith("Bearer"):
-        logger.info(f"abc")
-        # logger.info(f"auth_header: {auth_header}")
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
-    token = auth_header.split(" ")[1]
-
-    # logger.info(f"token: {token}")
-
+    
+    token = request.cookies.get("authToken")  
+    
+    if not token:
+        return Response(content='{"error": "Unauthorized"}', status_code=401, media_type="application/json")
 
     try:
-        # Verify the Firebase ID token
-        decoded_token = auth.verify_id_token(token)
-        # logger.info(f"decoded_token: {decoded_token}")
-        email = decoded_token.get("email")
-        logger.info(f"email: {email}")
-        # Check Firestore for the whitelisted email
-        # doc_ref = db.collection("allowed_emails").document(email)
-        # doc = doc_ref.get()
-        # logger.info(f"doc: {doc}")
-        # if not doc.exists:
-        #     raise HTTPException(status_code=403, detail="Email not authorized")
-        
-        # Proceed to the next middleware/endpoint
-        request.state.user = decoded_token  # You can store user info in the request state
-        # logger.info(f"request.state.user: {request.state.user}")
-        return await call_next(request)
-
+        decoded_token = auth.verify_id_token(token)  
+        request.state.user = decoded_token  
     except Exception as e:
-        logger.error(f"Invalid or expired token: {str(e)}")
-        logger.error(f"Full exception traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-# # Add AuthMiddleware after, without any keyword arguments
+        return Response(content='{"error": "Invalid token"}', status_code=401, media_type="application/json")
 
+    return await call_next(request)
 
-# Add CORS middleware first
 
 
 
