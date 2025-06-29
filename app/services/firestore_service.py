@@ -327,8 +327,12 @@ def validate_room_password(room_id: str, password: str = None) -> bool:
         logging.error(f"Error validating room password: {e}")
         return False
 
-def create_room(owner_id, duration_in_hours, password: str = None):
+def create_room(owner_id, duration_in_hours, password: str = None, max_players: int = 4):
     try:
+        # Validate max_players
+        if max_players < 1 or max_players > 8:
+            return {"error": "Max players must be between 1 and 8"}
+
         room_id = None
         while True:
             room_id = str(random.randint(100000, 999999))
@@ -346,7 +350,8 @@ def create_room(owner_id, duration_in_hours, password: str = None):
             "ownerId": owner_id,
             # "createdAt": firestore.SERVER_TIMESTAMP,
             "expiresAt": expires_at,
-            "isActive": True
+            "isActive": True,
+            "maxPlayers": max_players
         }
 
         # Add password hash if password is provided

@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from io import BytesIO
 import logging
 import traceback
-from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room, validate_room_password
+from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room, validate_room_password, get_room_by_id
 from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player
 from app.stores.player_store import add_player_info, get_player_info
 from firebase_admin import db
@@ -43,19 +43,27 @@ async def join_room(room_id: str, request: Request, user_info: User, password: s
         logger.info(f"abc")
         raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
 
-    # Validate room password
+    # Validate room password and get room data
+    room_data = get_room_by_id(room_id)
+    if not room_data:
+        raise HTTPException(status_code=404, detail="Room not found")
+
     if not validate_room_password(room_id, password):
-        raise HTTPException(status_code=403, detail="Invalid room password or room not found")
+        raise HTTPException(status_code=403, detail="Invalid room password")
+
+    # Get max players from room data (default to 4 for backward compatibility)
+    max_players = room_data.get("maxPlayers", 4)
+
     try:
         logger.info(f"abc")
         try:
             logger.info("Attempting to create reference to Firebase")
             ref = db.reference(f"rooms/{room_id}/players")
             logger.info("Reference created successfully")
-            
+
 
             # Tiếp tục logic của bạn
-        
+
         except Exception as e:
             logger.error(f"Error creating Firebase reference: {str(e)}")
             logger.error(f"Full traceback: {traceback.format_exc()}")
@@ -64,7 +72,7 @@ async def join_room(room_id: str, request: Request, user_info: User, password: s
         players = ref.get() or {}
         logger.info(f"abcde")
 
-        if len(players) >= 4: 
+        if len(players) >= max_players:
             logger.info(f"abcdef")
             raise HTTPException(status_code=400, detail="Room full")
         try:
@@ -155,7 +163,7 @@ def create_new_room(turn: int, room_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
     
 @room_routers.post("/api/room/create")
-def create_new_room(expired_time: int, request: Request, password: str = None):
+def create_new_room(expired_time: int, request: Request, password: str = None, max_players: int = 4):
 
     user = request.state.user
     authenticated_uid = user["uid"]
@@ -165,7 +173,7 @@ def create_new_room(expired_time: int, request: Request, password: str = None):
 
     try:
         # Call create_room to generate a unique room ID and save it to Firestore
-        result = create_room(authenticated_uid, expired_time, password)
+        result = create_room(authenticated_uid, expired_time, password, max_players)
 
         return {"message": "Room created successfully", "result": result}
 
