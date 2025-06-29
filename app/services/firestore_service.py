@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from ..models.history import History
 import logging
 import traceback
+import bcrypt
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -281,8 +282,52 @@ def update_question(question_id: str, updated_data: dict):
     except Exception as e:
         logging.error(f"Unexpected error updating question {question_id}: {e}")
         return {"error": f"An unexpected error occurred: {e}"}
-    
-def create_room(owner_id, duration_in_hours):
+
+# Password utility functions
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def get_room_by_id(room_id: str):
+    """Get room data by room ID"""
+    try:
+        room_ref = db.collection("rooms").document(room_id)
+        room_doc = room_ref.get()
+        if room_doc.exists:
+            return room_doc.to_dict()
+        return None
+    except Exception as e:
+        logging.error(f"Error getting room {room_id}: {e}")
+        return None
+
+def validate_room_password(room_id: str, password: str = None) -> bool:
+    """Validate room password if room has password protection"""
+    try:
+        room_data = get_room_by_id(room_id)
+        if not room_data:
+            return False
+
+        # If room has no password hash, it's not password protected
+        if "passwordHash" not in room_data:
+            return True
+
+        # If room has password hash but no password provided, validation fails
+        if not password:
+            return False
+
+        # Verify the password
+        return verify_password(password, room_data["passwordHash"])
+    except Exception as e:
+        logging.error(f"Error validating room password: {e}")
+        return False
+
+def create_room(owner_id, duration_in_hours, password: str = None):
     try:
         room_id = None
         while True:
@@ -296,13 +341,20 @@ def create_room(owner_id, duration_in_hours):
        # Expiration time
         expires_at = datetime.utcnow() + timedelta(hours=duration_in_hours)
 
-        # Create room document in Firestore
-        db.collection("rooms").document(room_id).set({
+        # Prepare room data
+        room_data = {
             "ownerId": owner_id,
             # "createdAt": firestore.SERVER_TIMESTAMP,
             "expiresAt": expires_at,
             "isActive": True
-        })
+        }
+
+        # Add password hash if password is provided
+        if password:
+            room_data["passwordHash"] = hash_password(password)
+
+        # Create room document in Firestore
+        db.collection("rooms").document(room_id).set(room_data)
 
         return {"roomId": room_id, "isActive": True,"message": "Room created successfully!"}
     except Exception as e:

@@ -370,7 +370,7 @@ def get_question_one_by_one(test_name:str, round: str, room_id: str,request: Req
                 if isinstance(question, dict):
                     current_correct_answer = question.get("answer")
                     if current_correct_answer is not None:
-                        current_correct_answer = current_correct_answer.split("~/")
+                        current_correct_answer = str(current_correct_answer).split("~/")
                     set_current_correct_answer(room_id,current_correct_answer)
                     question_without_answer =  {key: value for key, value in question.items() if key != "answer"}
 

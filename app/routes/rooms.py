@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from io import BytesIO
 import logging
 import traceback
-from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room
+from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room, validate_room_password
 from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player
 from app.stores.player_store import add_player_info, get_player_info
 from firebase_admin import db
@@ -29,9 +29,9 @@ room_routers = APIRouter()
 
 
 @room_routers.post("/api/room/join")
-async def join_room(room_id: str, request: Request, user_info: User):
-    user = request.state.user  
-    authenticated_uid = user.get("uid")  
+async def join_room(room_id: str, request: Request, user_info: User, password: str = None):
+    user = request.state.user
+    authenticated_uid = user.get("uid")
     logger.info(f"user: {user_info}")
     logger.info(f"room_id: {room_id}")
     # logger.info(f"user",{request.state.user})
@@ -42,6 +42,10 @@ async def join_room(room_id: str, request: Request, user_info: User):
     if not authenticated_uid:
         logger.info(f"abc")
         raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+
+    # Validate room password
+    if not validate_room_password(room_id, password):
+        raise HTTPException(status_code=403, detail="Invalid room password or room not found")
     try:
         logger.info(f"abc")
         try:
@@ -151,7 +155,7 @@ def create_new_room(turn: int, room_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
     
 @room_routers.post("/api/room/create")
-def create_new_room(expired_time: int, request: Request): 
+def create_new_room(expired_time: int, request: Request, password: str = None):
 
     user = request.state.user
     authenticated_uid = user["uid"]
@@ -161,7 +165,7 @@ def create_new_room(expired_time: int, request: Request):
 
     try:
         # Call create_room to generate a unique room ID and save it to Firestore
-        result = create_room(authenticated_uid, expired_time)
+        result = create_room(authenticated_uid, expired_time, password)
 
         return {"message": "Room created successfully", "result": result}
 
