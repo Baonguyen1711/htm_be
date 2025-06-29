@@ -3,6 +3,8 @@ from app.routes.tests import test_routers
 from app.routes.rooms import room_routers
 from app.routes.auth import auth_routers
 from app.routes.buzz import buzz_routers
+from app.routes.star import star_routers
+from app.routes.history import history_routers
 from app.services.s3_service import S3Service
 from app.services.sound_service import SoundService
 from app.routes.s3 import S3Router
@@ -53,6 +55,8 @@ app.include_router(test_routers)
 app.include_router(room_routers)
 app.include_router(auth_routers)
 app.include_router(buzz_routers)
+app.include_router(star_routers)
+app.include_router(history_routers)
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,11 +77,12 @@ async def dispatch(request: Request, call_next):
     # Skip middleware for preflight OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
-    if request.url.path in ["/api/auth", "/docs", "/openapi.json", "/redoc"]:
+    if request.url.path in ["/api/auth/token","/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
     
-    token = request.cookies.get("authToken")  
+    token = request.cookies.get("authToken")
+    logger.info(f"Token: {token}")  
     
     if not token:
         return Response(content='{"error": "Unauthorized"}', status_code=401, media_type="application/json")

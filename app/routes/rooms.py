@@ -14,7 +14,8 @@ from io import BytesIO
 import logging
 import traceback
 from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room
-from app.services.realtime_service import set_next_round
+from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player
+from app.stores.player_store import add_player_info, get_player_info
 from firebase_admin import db
 import time
 from typing import List, Optional
@@ -23,6 +24,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 room_routers = APIRouter()
+
+
+
 
 @room_routers.post("/api/room/join")
 async def join_room(room_id: str, request: Request, user_info: User):
@@ -33,7 +37,7 @@ async def join_room(room_id: str, request: Request, user_info: User):
     # logger.info(f"user",{request.state.user})
     user_data = user_info.dict()  # Chuyển Pydantic model thành dictionary
     user_data["uid"] = authenticated_uid  # Thêm UID từ token xác thực
-    user_data["joined_at"] = int(time.time() * 1000)  # Thêm thời gian
+    user_data["lastActive"] = int(time.time() * 1000)  # Thêm thời gian
     logger.info(f"user_data: {user_data}")
     if not authenticated_uid:
         logger.info(f"abc")
@@ -75,18 +79,39 @@ async def join_room(room_id: str, request: Request, user_info: User):
         # Get updated players list after adding the new player
         updated_players = ref.get() or {}
         logger.info(f"abcdeg")
-        # Prepare response data with all players' info
-        players_info = []
+
         try:
             for uid, player_data in updated_players.items():
                 stt = player_data["stt"]
-                players_info.append({
+                player_info_object = {
                         "uid": uid,
-                        "joined_at": player_data["joined_at"],
                         "userName": player_data["userName"],
                         "avatar": player_data["avatar"],
                         "stt": player_data["stt"],
-                })
+                        "lastActive": player_data["lastActive"],
+                }
+
+                player_info_object_for_answer = {
+                    **player_info_object,
+                    "answer": "",
+                    "row": "",
+                    "time": 0,
+                    "score": 0,
+                    "isObstacle": False,
+                    "round_scores": {
+                        "1": 0,
+                        "2": 0,
+                        "3": 0,
+                        "4": 0
+                    },
+                    "was_deducted_this_round": False,
+                    "is_correct": False
+                }
+
+                add_player_info(room_id, player_info_object)
+
+                set_player_answer(room_id, uid, player_info_object_for_answer)
+
 
             logger.info(f"abcdeh")
 
@@ -98,7 +123,7 @@ async def join_room(room_id: str, request: Request, user_info: User):
             raise  # Ném lại lỗi để xử lý ở tầng trên nếu cần
         
         
-        
+        players_info = get_player_info(room_id)
         return {
             "message": f"User {authenticated_uid} joined room {room_id}",
             "userId": {authenticated_uid},
@@ -108,6 +133,23 @@ async def join_room(room_id: str, request: Request, user_info: User):
         raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
     
 
+@room_routers.post("/api/room/turn")
+def create_new_room(turn: int, room_id: str, request: Request): 
+
+    user = request.state.user
+    authenticated_uid = user["uid"]
+
+    if not authenticated_uid:
+        raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+
+    try:
+        send_currrent_turn_to_player(turn,room_id)
+
+        return {"message": "set current turn sucessfully", "stt": turn}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
+    
 @room_routers.post("/api/room/create")
 def create_new_room(expired_time: int, request: Request): 
 
@@ -194,7 +236,15 @@ async def get_rooms(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting room: {str(e)}")
     
+@room_routers.post("/api/room/spectator/join")
+def spectator_join_room(room_id: str): 
+    try:
+        spectator_path = spectator_join(room_id)
 
+        return { "spectator_path": spectator_path}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
     
 
 

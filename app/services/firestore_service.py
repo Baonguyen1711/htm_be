@@ -3,12 +3,29 @@ import datetime
 from google.cloud import firestore
 import random
 from datetime import datetime, timedelta
+from ..models.history import History
 import logging
 import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def update_history(user_id: str, data: History):
+    logger.info(f"received data {data}")
+    db.collection("histories").document(user_id).set(data.dict())
+
+def get_history_by_user_id(user_id: str):
+    try:
+        doc_ref = db.collection("histories").document(user_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        else:
+            return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
 def add_user_to_firestore(user_id: str, data: dict):
     db.collection("users").document(user_id).set(data)
@@ -314,6 +331,20 @@ def get_rooms_by_user_id(owner_id):
         #     return {"error": "No rooms found for this user."}
 
         return {"rooms": rooms}
+
+    except Exception as e:
+        # Handle exceptions and return an error message
+        return {"error": f"An error occurred: {str(e)}"}
+    
+def is_logged_in_user(user_id):
+    try:
+        # Query the rooms collection for documents with the given owner_id
+        logger.info(f"user_id {user_id}")
+        users_ref = db.collection("users").document(user_id)
+        users = users_ref.get()        
+        logger.info(f"users.id {users.id}")
+
+        return users.exists
 
     except Exception as e:
         # Handle exceptions and return an error message

@@ -1,11 +1,12 @@
+import traceback
 from firebase_admin import db
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-from ..models.questions import Answer
-from ..models.scores import Score
+from ..models.questions import Answer, PlacementArray
+from ..models.scores import Score, ScoreRule
 from ..models.buzz import BuzzRequest
 import json
 # # Cấu hình Realtime Database
@@ -23,10 +24,25 @@ def send_current_question_to_player(room_id:str,question_number:int):
     ref = db.reference(f"/rooms/{room_id}/currentQuestions")
     ref.set(question_number)
 
+def update_score_each_round(room_id:str,data: any, round: str):
+    logger.info(f"data {data}")
+    ref = db.reference(f"rooms/{room_id}/round_scores/{round}")
+    ref.set(data)
+
 def send_packet_name_to_player(packet_list:List[str], room_id:str):
 
     ref = db.reference(f"/rooms/{room_id}/packets")
     ref.set(packet_list)
+
+def send_selected_packet_name_to_player(packet:str, room_id:str):
+
+    ref = db.reference(f"/rooms/{room_id}/selectedPacket")
+    ref.set(packet)
+
+def send_currrent_turn_to_player(stt:int, room_id:str):
+
+    ref = db.reference(f"/rooms/{room_id}/turn")
+    ref.set(stt)
 
 def send_round_2_grid_to_player(grid: List[List[str]], room_id:str):
     logger.info(f"question {grid}")
@@ -96,11 +112,28 @@ def broadcast_player_answer(room_id:str, answer:List[Answer]):
     ref = db.reference(f"/rooms/{room_id}/answerLists")
     ref.set(answer)
 
-def send_score(room_id:str, score:List[Score]):
-    logger.info(f"answer {room_id}")
-    logger.info(f"List[Score] {score}")
-    ref = db.reference(f"/rooms/{room_id}/scores")
-    ref.set(score)
+def is_existing_player(room_id:str, uid:str):
+    logger.info(f"uid {uid}")
+    ref = db.reference(f"/rooms/{room_id}/player_answer/{uid}")
+    data = ref.get()
+    if data is not None:
+        return True
+    else: 
+        return False
+
+def send_score(room_id:str,mode:str, score:Optional[List[Score]] = None):
+    try:        
+        logger.info(f"roomid {room_id}")
+        logger.info(f"List[Score] {score}")
+        logger.info(f"mode {mode}")
+        ref = db.reference(f"/rooms/{room_id}/scores")
+        ref.set(score)
+
+
+    except Exception as e:
+        logger.error(f"Error creating Firebase reference: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise
 
 def set_next_round(room_id:str, round: str, grid: Optional[List[List[str]]] = None):
     logger.info(f"current round {round}")
@@ -110,11 +143,14 @@ def set_next_round(room_id:str, round: str, grid: Optional[List[List[str]]] = No
         "grid": grid
     })
 
-def send_obstacle(room_id:str, obstacle: str):
+def send_obstacle(room_id:str, obstacle: str, placementArray: List[PlacementArray]):
     logger.info(f"answer {room_id}")
     logger.info(f"obstacle {obstacle}")
     ref = db.reference(f"/rooms/{room_id}/obstacles")
-    ref.set(obstacle)
+    ref.set({
+        "obstacle": obstacle,
+        "placementArray": placementArray
+    })
 
 def buzz_first(room_id:str,stt:str, player_name: str):
     buzz_ref = db.reference(f"rooms/{room_id}/buzzedPlayer")
@@ -143,7 +179,227 @@ def close_buzz(room_id: str):
     buzz_ref = db.reference(f"rooms/{room_id}/openBuzzed")
     buzz_ref.delete()
 
+def set_star(room_id: str, player_name: str):
+    star_ref = db.reference(f"rooms/{room_id}/star")
+    star_ref.set(player_name)
+
+
+def reset_star(room_id: str):
+    star_ref = db.reference(f"rooms/{room_id}/star")
+    star_ref.delete()
+
 def play_sound(room_id: str, type: str):
     logger.info(f"sound {type}")
     ref = db.reference(f"/rooms/{room_id}/sound")
     ref.set(type)
+
+def send_score_rule(room_id: str, rules: ScoreRule):
+    logger.info(f"rules {rules}")
+    ref = db.reference(f"/rooms/{room_id}/rules")
+    ref.set(rules)
+
+def spectator_join(room_id):
+    ref = db.reference(f"/rooms/{room_id}/spectators").push()
+    ref.set(True)
+    return ref.path
+
+def set_single_player_answer(room_id: str, uid: str, player_data: Dict[str, Any]) -> None:
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer/{uid}")
+        ref.set(player_data)
+        # def transaction_update(current_data: Dict[str, Any] | None) -> Dict[str, Any]:
+        #     if current_data is None:
+        #         # New player
+        #         return player_data
+        #     else:
+        #         # Existing player, update relevant fields, preserve score and round_scores
+        #         current_data.update({
+        #             "answer": player_data["answer"],
+        #             "stt": player_data["stt"],
+        #             "row": player_data["row"],
+        #             "time": player_data["time"],
+        #             "isObstacle": player_data["isObstacle"],
+        #             "is_correct": player_data["is_correct"],
+        #             "player_name": player_data["player_name"],
+        #             "avatar": player_data["avatar"]
+        #         })
+        #         return current_data
+        # ref.transaction(transaction_update)
+        logger.info(f"Successfully updated answer for uid {uid} in room {room_id}")
+    except Exception as e:
+        logger.error(f"Error setting answer for uid {uid} in room {room_id}: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise
+
+
+def set_player_answer(room_id: str, uid: str,player_data: Dict[str, Any]) -> None:
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer/{uid}")
+        ref.set(player_data)
+    except Exception as e:
+        logger.error(f"Error setting player_answer in transaction for room {room_id}: {str(e)}")
+        raise
+
+def get_all_player_answer(room_id: str) -> List[Dict[str, Any]]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No player_answer data found for room {room_id}")
+            return []
+        # Convert dictionary to list
+        logger.info(f"data {data}")
+        players = list(data.values()) 
+        logger.info(f"Retrieved player_answer for room {room_id} {players}")
+        return players
+    except Exception as e:
+        logger.error(f"Error getting player_answer for room {room_id}: {str(e)}")
+        raise
+
+
+def get_player_answer(room_id: str, uid: str) -> Dict[str, Any]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer/{uid}")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No player_answer data found for room {room_id}")
+            return None
+
+        players = data
+        logger.info(f"Retrieved player_answer for room {room_id} {players}")
+        return players
+    except Exception as e:
+        logger.error(f"Error getting player_answer for room {room_id}: {str(e)}")
+        raise
+
+def set_player_answer_correct(room_id: str, correct_data: List[Dict[str, Any]]) -> None:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer_correct")
+        data = {player["stt"]: player for player in correct_data}
+        ref.set(data)
+        logger.info(f"Set player_answer_correct for room {room_id}")
+    except Exception as e:
+        logger.error(f"Error setting player_answer_correct for room {room_id}: {str(e)}")
+        raise
+
+def get_player_answer_correct(room_id: str) -> List[Dict[str, Any]]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_answer_correct")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No player_answer_correct data found for room {room_id}")
+            return []
+        players = list(data.values())
+        logger.info(f"Retrieved player_answer_correct for room {room_id}")
+        return players
+    except Exception as e:
+        logger.error(f"Error getting player_answer_correct for room {room_id}: {str(e)}")
+        raise
+
+def set_player_info(room_id: str, player_info: List[Dict[str, Any]]) -> None:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_info")
+        data = {player["stt"]: player for player in player_info}
+        ref.set(data)
+        logger.info(f"Set player_info for room {room_id}")
+    except Exception as e:
+        logger.error(f"Error setting player_info for room {room_id}: {str(e)}")
+        raise
+
+def get_player_info(room_id: str) -> List[Dict[str, Any]]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/player_info")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No player_info data found for room {room_id}")
+            return []
+        players = list(data.values())
+        logger.info(f"Retrieved player_info for room {room_id}")
+        return players
+    except Exception as e:
+        logger.error(f"Error getting player_info for room {room_id}: {str(e)}")
+        raise
+
+def set_score_rules(room_id: str, rules: Dict[str, Any]) -> None:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/rules")
+        ref.set(rules)
+        logger.info(f"Set score_rules for room {room_id}")
+    except Exception as e:
+        logger.error(f"Error setting score_rules for room {room_id}: {str(e)}")
+        raise
+
+def get_score_rules(room_id: str) -> Dict[str, Any]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/rules")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No score_rules found for room {room_id}, returning default")
+            return {
+                "round1": [15, 10, 10, 10],
+                "round2": [15, 10, 10, 10],
+                "round3": 10,
+                "round4": [10, 20, 30]
+            }
+        logger.info(f"Retrieved score_rules for room {room_id}")
+        return data
+    except Exception as e:
+        logger.error(f"Error getting score_rules for room {room_id}: {str(e)}")
+        raise
+
+def set_current_correct_answer(room_id: str, answer: str) -> None:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/current_correct_answer")
+        ref.set(answer)
+        logger.info(f"Set current_correct_answer for room {room_id}")
+    except Exception as e:
+        logger.error(f"Error setting current_correct_answer for room {room_id}: {str(e)}")
+        raise
+
+def get_current_correct_answer(room_id: str) -> str:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/current_correct_answer")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No current_correct_answer found for room {room_id}")
+            return ""
+        logger.info(f"Retrieved current_correct_answer for room {room_id}")
+        return data
+    except Exception as e:
+        logger.error(f"Error getting current_correct_answer for room {room_id}: {str(e)}")
+        raise
+
+def update_score_each_round(room_id: str, data: Dict[str, Any], round: str) -> None:
+
+    try:
+        logger.info(f"Setting round scores data for room {room_id}, round {round}: {data}")
+        ref = db.reference(f"rooms/{room_id}/round_scores/{round}")
+        ref.set(data)
+        logger.info(f"Set round scores for room {room_id}, round {round}")
+    except Exception as e:
+        logger.error(f"Error setting round scores for room {room_id}, round {round}: {str(e)}")
+        raise
+
+def get_score_each_round(room_id: str, round: str) -> Dict[str, Any]:
+
+    try:
+        ref = db.reference(f"rooms/{room_id}/round_scores/{round}")
+        data = ref.get()
+        if data is None:
+            logger.info(f"No round scores found for room {room_id}, round {round}")
+            return {}
+        logger.info(f"Retrieved round scores for room {room_id}, round {round}")
+        return data
+    except Exception as e:
+        logger.error(f"Error getting round scores for room {room_id}, round {round}: {str(e)}")
+        raise

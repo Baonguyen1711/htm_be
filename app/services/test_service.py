@@ -3,7 +3,7 @@
 from collections import defaultdict
 import logging
 
-from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question
+from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question, get_test_by_test_id
 from .cache_service import get_cached_test, set_cached_test, clear_cached_test
 from typing import Optional
 from fastapi import HTTPException, status, Depends
@@ -17,12 +17,14 @@ def process_test_data(uid: str, test_name: str):
     cached_data = get_cached_test(uid, test_name)
     if cached_data:
         return cached_data
-    questions = get_test_by_name(uid, test_name)[0]["questions"]
+    questions = get_test_by_name(uid,test_name)[0]["questions"]
 
     logger.info(f"Processing test data for {test_name}")
+    logger.info(f"test data {questions}")
 
     round_1 = sorted([q for q in questions if q["round"] == 1], key=lambda x: x["stt"])
     round_2 = sorted([q for q in questions if q["round"] == 2], key=lambda x: x["stt"])
+    turn = sorted([q for q in questions if q["round"] == "turn"], key=lambda x: x["stt"])
 
     grouped_round_3 = defaultdict(list)
     for q in [q for q in questions if q["round"] == 3]:
@@ -40,7 +42,8 @@ def process_test_data(uid: str, test_name: str):
         "round_1": round_1,
         "round_2": round_2,
         "round_3": dict(grouped_round_3),
-        "round_4": dict(grouped_round_4)
+        "round_4": dict(grouped_round_4),
+        "turn": turn
     }
 
     set_cached_test(uid, test_name, result)
@@ -54,7 +57,89 @@ def get_packet_name(test_data: dict) -> dict:
     except:
         raise HTTPException(status_code=400, detail="Invalid round")
 
-def get_specific_question(test_data: dict,  round: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None, chunk: Optional[int] = None,question_number: Optional[str] | None= None) -> dict:
+def get_specific_question(
+    test_data: dict,
+    round: str,
+    packet_name: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    chunk: Optional[int] = None,
+    question_number: Optional[str] = None,
+    page: Optional[int] = 1,
+    limit: Optional[int] = 1
+) -> dict:
+
+    try:
+        question_index = int(question_number) - 1 if question_number is not None else None
+        if question_index is not None and question_index < 0:
+            raise ValueError("Question number must be positive")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid question number")
+
+    round_key = "turn" if round == "turn" else f"round_{round}"
+    salt = "HTMNBK2025"
+    
+    if round_key not in test_data:
+        raise HTTPException(status_code=400, detail="Invalid round")
+
+    # Helper for pagination
+    def paginate(data: list) -> list:
+        start = (page - 1) * limit
+        end = start + limit
+        return data[start:end]
+
+    if round in ["1", "2", "turn"]:
+        questions = test_data[round_key]
+        if question_index is not None:
+            if 0 <= question_index < len(questions):
+                return questions[question_index]
+            else:
+                raise HTTPException(status_code=404, detail="Question not found in this round")
+        return paginate(questions)
+
+    elif round == "3":
+        if not packet_name:
+            raise HTTPException(status_code=400, detail="packetName is required for round 3")
+        if packet_name not in test_data["round_3"]:
+            raise HTTPException(status_code=400, detail=f"Invalid packetName: {packet_name}")
+
+        questions = []
+        for q_obj in test_data["round_3"][packet_name]:
+            # original_question = q_obj.get("question")
+            # if not original_question:
+            #     raise HTTPException(status_code=500, detail="Missing question field in packet")
+
+            # salted = salt + original_question
+            # encoded_question = base64.b64encode(salted.encode()).decode()
+
+            # obfuscated_obj = dict(q_obj)
+            # obfuscated_obj["question"] = encoded_question
+            questions.append(q_obj)
+
+        if question_index is not None:
+            if 0 <= question_index < len(questions):
+                return questions[question_index]
+            else:
+                raise HTTPException(status_code=404, detail="Question not found in this packet")
+
+        return paginate(questions)
+
+    elif round == "4":
+        if not difficulty:
+            raise HTTPException(status_code=400, detail="difficulty is required for round 4")
+        if difficulty not in test_data["round_4"]:
+            raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
+
+        questions = test_data["round_4"][difficulty]
+        if question_index is not None:
+            if 0 <= question_index < len(questions):
+                return questions[question_index]
+            else:
+                raise HTTPException(status_code=404, detail="Question not found in this difficulty")
+
+        return paginate(questions)
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid round")
     try:
         if question_number is not None:
             question_index = int(question_number) - 1 
