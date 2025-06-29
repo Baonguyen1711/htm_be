@@ -143,6 +143,22 @@ def set_next_round(room_id:str, round: str, grid: Optional[List[List[str]]] = No
         "grid": grid
     })
 
+    # Clear player highlighting and turn assignments when switching rounds
+    turn_ref = db.reference(f"/rooms/{room_id}/turn")
+    turn_ref.delete()
+
+    ismodified_ref = db.reference(f"/rooms/{room_id}/isModified")
+    ismodified_ref.delete()
+
+    # Clear scores isModified flags
+    scores_ref = db.reference(f"/rooms/{room_id}/scores")
+    scores_data = scores_ref.get()
+    if scores_data:
+        for player_key, player_data in scores_data.items():
+            if isinstance(player_data, dict) and 'isModified' in player_data:
+                player_ref = db.reference(f"/rooms/{room_id}/scores/{player_key}")
+                player_ref.update({"isModified": False})
+
 def send_obstacle(room_id:str, obstacle: str, placementArray: List[PlacementArray]):
     logger.info(f"answer {room_id}")
     logger.info(f"obstacle {obstacle}")

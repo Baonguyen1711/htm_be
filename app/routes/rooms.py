@@ -28,6 +28,19 @@ room_routers = APIRouter()
 
 
 
+@room_routers.post("/api/room/validate")
+async def validate_room(room_id: str, password: str = None):
+    """Validate room existence and password without joining"""
+    # Validate room password and get room data
+    room_data = get_room_by_id(room_id)
+    if not room_data:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    if not validate_room_password(room_id, password):
+        raise HTTPException(status_code=403, detail="Invalid room password")
+
+    return {"message": "Room validation successful"}
+
 @room_routers.post("/api/room/join")
 async def join_room(room_id: str, request: Request, user_info: User, password: str = None):
     user = request.state.user

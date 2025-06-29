@@ -348,6 +348,40 @@ def get_each_round_questions(test_name:str, round: str, room_id: str,request: Re
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     return questions
 
+@test_routers.get("/api/test/question/prefetch")
+def prefetch_question(test_name:str, round: str, room_id: str, request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[str] | None= None):
+    """Prefetch next question without sending to players - for host preview"""
+    try:
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        if not authenticated_uid:
+            raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+
+        result = process_test_data(authenticated_uid, test_name)
+
+        try:
+            logger.info("Prefetching question for host preview")
+            question_with_answer = get_specific_question(result, round, packet_name, difficulty, None, question_number)
+            logger.info("Prefetch successful")
+
+            # Return question with answer for host preview (don't send to Firebase)
+            return {
+                "question": question_with_answer,
+                "answer": question_with_answer.get("answer", ""),
+                "prefetch": True
+            }
+
+        except Exception as e:
+            logger.error(f"Error prefetching question: {str(e)}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=f"Error prefetching question: {str(e)}")
+
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error processing prefetch request: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 @test_routers.get("/api/test/question")
 def get_question_one_by_one(test_name:str, round: str, room_id: str,request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[str] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
 
