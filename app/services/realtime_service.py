@@ -199,6 +199,19 @@ def set_star(room_id: str, player_name: str):
     star_ref = db.reference(f"rooms/{room_id}/star")
     star_ref.set(player_name)
 
+def show_rules(room_id: str, round_number: str):
+    """Show rules for specific round"""
+    rules_ref = db.reference(f"rooms/{room_id}/showRules")
+    rules_ref.set({
+        "show": True,
+        "round": round_number
+    })
+
+def hide_rules(room_id: str):
+    """Hide rules"""
+    rules_ref = db.reference(f"rooms/{room_id}/showRules")
+    rules_ref.delete()
+
 
 def reset_star(room_id: str):
     star_ref = db.reference(f"rooms/{room_id}/star")

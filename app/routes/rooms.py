@@ -14,7 +14,7 @@ from io import BytesIO
 import logging
 import traceback
 from app.services.firestore_service import create_room, get_rooms_by_user_id, deactivate_room, validate_room_password, get_room_by_id
-from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player
+from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player, show_rules, hide_rules
 from app.stores.player_store import add_player_info, get_player_info
 from firebase_admin import db
 import time
@@ -270,6 +270,35 @@ def spectator_join_room(room_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating room: {str(e)}")
-    
 
+@room_routers.post("/api/room/rules/show")
+def show_room_rules(room_id: str, round_number: str, request: Request):
+    """Show rules for specific round"""
+    user = request.state.user
+    authenticated_uid = user["uid"]
 
+    if not authenticated_uid:
+        raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+
+    try:
+        show_rules(room_id, round_number)
+        return {"message": "Rules shown successfully", "room_id": room_id, "round": round_number}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error showing rules: {str(e)}")
+
+@room_routers.post("/api/room/rules/hide")
+def hide_room_rules(room_id: str, request: Request):
+    """Hide rules"""
+    user = request.state.user
+    authenticated_uid = user["uid"]
+
+    if not authenticated_uid:
+        raise HTTPException(status_code=401, detail="Unauthorized: User ID not found")
+
+    try:
+        hide_rules(room_id)
+        return {"message": "Rules hidden successfully", "room_id": room_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error hiding rules: {str(e)}")
