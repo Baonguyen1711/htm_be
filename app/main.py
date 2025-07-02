@@ -60,10 +60,11 @@ app.include_router(history_routers)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Specify allowed origins
+    allow_origins=["http://localhost:3000", "https://28a2-2402-9d80-a50-f638-115b-68ac-7642-3852.ngrok-free.app"],  # Specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],  # Specify allowed methods
     allow_headers=["*"],  # Specify allowed headers
+    expose_headers=["Set-Cookie"]
 )
 
 

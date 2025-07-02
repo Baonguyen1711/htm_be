@@ -84,7 +84,7 @@ async def generate_tokens(request: Request):
             value=refresh_token,
             httponly=True,
             secure=True,
-            samesite="Strict",
+            samesite="None",
             max_age=REFRESH_TOKEN_EXPIRE_SECONDS
         )
         return response
@@ -167,8 +167,8 @@ async def authenticate(request: Request, response: Response):
             value=id_token,
             httponly=True,  
             secure=True,
-            samesite="Strict",
-            max_age=3600  
+            samesite="None",
+            max_age=60*60*24*7  
         )
         return {"message": "Authenticated", "user": decoded_token}
     except Exception as e:
