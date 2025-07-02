@@ -703,7 +703,9 @@ def send_score_to_player(
                     # })
 
 
-            if mode == "adaptive" and not is_obstacle_correct:
+            # For rounds 1 and 2, use adaptive scoring if mode is "adaptive"
+            # For rounds 3 and 4, always use custom scoring logic (ignore mode)
+            if mode == "adaptive" and round in ["1", "2"] and not is_obstacle_correct:
                 correct_players = [p for p in player_answer if p.get("is_correct") == True]
                 correct_count = len(correct_players)
 
@@ -852,10 +854,11 @@ def send_score_to_player(
                     logger.error(f"Full traceback: {traceback.format_exc()}")
                     raise
 
-                try:            
+                try:
                     for player in player_answer:
                         # Check if this player is correct this round
-                        if player["is_correct"] and mode!="adaptive":
+                        # Only apply manual scoring for rounds 1 and 2
+                        if player["is_correct"] and mode!="adaptive" and round in ["1", "2"]:
                             index = next((i for i, p in enumerate(correct_players) if p["uid"] == player["uid"]), None)
                             bonus = score_rules[f"round{round}"][index] if index is not None else 0
                             player["score"] += bonus
@@ -1156,23 +1159,26 @@ async def process_file(test_name: str , request: Request, file: UploadFile = Fil
                         }
 
                 case "round4":
-                    difficulty = ""
-                    # Xử lý dữ liệu từ sheet
+                    # Đọc 60 câu hỏi liên tục và đánh ID theo thứ tự
                     processed_data = []
+                    question_count = 0
+
                     for row in data[1:]:  # Bỏ header
                         logger.info(f"row: {row}")
-                        if row[0] == "Mức độ":  
-                            difficulty = row[1] 
-                            continue  
-                        
-                        if row[1] and row[2]:
+
+                        if row[1] and row[2]:  # Có question và answer
+                            question_count += 1
                             processed_data.append({
-                                "stt": int(row[0]) if row[0] else None,  # Cột STT
-                                "question": row[1],                      # Cột Question
-                                "answer": row[2], 
-                                "url": row[3],                       # Cột Answer
-                                "difficulty": difficulty               
+                                "stt": question_count,  # ID liên tục từ 1-60
+                                "question": row[1],     # Cột Question
+                                "answer": row[2],       # Cột Answer
+                                "url": row[3] if len(row) > 3 else None,  # Cột URL (nếu có)
+                                "difficulty": None      # Sẽ được xác định động dựa trên cấu hình phòng
                             })
+
+                            # Dừng khi đủ 60 câu hỏi
+                            if question_count >= 60:
+                                break
 
                     logger.info(f"processed_data: {processed_data}")
                     result["sheets"]["round4"] = {
