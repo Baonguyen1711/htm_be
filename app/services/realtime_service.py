@@ -155,7 +155,7 @@ def set_next_round(room_id:str, round: str, grid: Optional[List[List[str]]] = No
     scores_data = scores_ref.get()
     logger.info(f"Scores data: {scores_data}")
     if scores_data:
-        for player_key, player_data in scores_data:
+        for player_key, player_data in enumerate(scores_data):
             if isinstance(player_data, dict) and 'isModified' in player_data:
                 player_ref = db.reference(f"/rooms/{room_id}/scores/{player_key}")
                 player_ref.update({"isModified": False})
