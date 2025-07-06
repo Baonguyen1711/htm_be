@@ -89,9 +89,47 @@ async def dispatch(request: Request, call_next):
         return Response(content='{"error": "Unauthorized"}', status_code=401, media_type="application/json")
 
     try:
-        decoded_token = auth.verify_id_token(token)  
-        request.state.user = decoded_token  
+        # Try to verify as Firebase ID token first
+        try:
+            decoded_token = auth.verify_id_token(token)
+        except Exception as firebase_error:
+            # If Firebase verification fails, try our custom JWT
+            logger.info(f"Firebase verification failed: {firebase_error}, trying custom JWT")
+            import jwt
+            SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+            logger.info(f"JWT Secret Key exists: {bool(SECRET_KEY)}")
+            if SECRET_KEY:
+                try:
+                    # Decode JWT without audience verification (since we control the token)
+                    decoded_token = jwt.decode(
+                        token,
+                        SECRET_KEY,
+                        algorithms=["HS256"],
+                        options={"verify_aud": False}  # Skip audience verification
+                    )
+                    logger.info(f"JWT decoded successfully: {decoded_token}")
+                    # Validate it's our API verification token
+                    if decoded_token.get("token_type") != "api_verification":
+                        raise Exception("Invalid token type")
+                    # Ensure required fields exist
+                    if not decoded_token.get("uid"):
+                        raise Exception("Missing uid in token")
+                    logger.info("Custom JWT verification successful")
+                except jwt.ExpiredSignatureError:
+                    logger.error("JWT token expired")
+                    return Response(content='{"error": "Token expired"}', status_code=401, media_type="application/json")
+                except jwt.InvalidTokenError as jwt_error:
+                    logger.error(f"JWT decode error: {jwt_error}")
+                    raise Exception(f"Invalid JWT token: {jwt_error}")
+                except Exception as custom_error:
+                    logger.error(f"Custom JWT validation error: {custom_error}")
+                    raise Exception(f"Custom JWT validation failed: {custom_error}")
+            else:
+                raise Exception("No JWT secret key configured")
+
+        request.state.user = decoded_token
     except Exception as e:
+        logger.error(f"Token verification error: {str(e)}")
         return Response(content='{"error": "Invalid token"}', status_code=401, media_type="application/json")
 
     return await call_next(request)

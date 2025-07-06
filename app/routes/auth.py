@@ -161,15 +161,77 @@ async def authenticate(request: Request, response: Response):
     id_token = data.get("token")
 
     try:
+
         decoded_token = auth.verify_id_token(id_token)
+
+        uid = decoded_token.get("uid")
+        email = decoded_token.get("email")
+
+
+        SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+        logger.info(f"Creating JWT with secret key exists: {bool(SECRET_KEY)}")
+
+        api_token_payload = {
+            "uid": uid,
+            "email": email,
+            "email_verified": decoded_token.get("email_verified", False),
+            "auth_time": decoded_token.get("auth_time"),
+            "iss": "htm-custom-auth",  # Our custom issuer
+            "aud": decoded_token.get("aud"),
+            "exp": int(time.time()) + (60*60*5), 
+            "iat": int(time.time()),
+            "sub": uid,
+            "token_type": "api_verification"  # Mark this as our custom token
+        }
+
+        logger.info(f"JWT payload: {api_token_payload}")
+
+        api_token = jwt.encode(api_token_payload, SECRET_KEY, algorithm="HS256")
+        logger.info(f"JWT token created successfully, length: {len(api_token)}")
+
+        # Ensure token is string (newer PyJWT versions return string, older return bytes)
+        if isinstance(api_token, bytes):
+            api_token = api_token.decode('utf-8')
+
         response.set_cookie(
             key="authToken",
-            value=id_token,
-            httponly=True,  
+            value=api_token,
+            httponly=True,
             secure=True,
             samesite="None",
-            max_age=60*60*24*7  
+            max_age=60*60*6  # 7 days - now matches token expiration
         )
         return {"message": "Authenticated", "user": decoded_token}
     except Exception as e:
+        logger.error(f"Authentication error: {str(e)}")
         return {"error": str(e)}
+
+@auth_routers.post("/api/auth/logout")
+async def logout(response: Response):
+    """
+    Logout endpoint that clears httpOnly cookies
+    """
+    try:
+        # Clear the httpOnly cookies by setting them to expire immediately
+        response.set_cookie(
+            key="refreshToken",
+            value="",
+            httponly=True,
+            secure=True,
+            samesite="None",
+            max_age=0  # Expire immediately
+        )
+
+        response.set_cookie(
+            key="authToken",
+            value="",
+            httponly=True,
+            secure=True,
+            samesite="None",
+            max_age=0  # Expire immediately
+        )
+
+        return {"message": "Logged out successfully"}
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}")
+        return {"error": "Logout failed"}

@@ -126,10 +126,28 @@ def get_specific_question(
     elif round == "4":
         if not difficulty:
             raise HTTPException(status_code=400, detail="difficulty is required for round 4")
-        if difficulty not in test_data["round_4"]:
+        if difficulty not in ["Dễ", "Trung bình", "Khó"]:
             raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
+        logger.info(f"questions 3 :{test_data['round_4']}")
 
-        questions = test_data["round_4"][difficulty]
+        # Get the actual questions list from the dictionary
+        round_4_data = test_data["round_4"]
+        if isinstance(round_4_data, dict):
+            # If it's a dict, get the first value (the questions list)
+            questions = list(round_4_data.values())[0]
+        else:
+            # If it's already a list
+            questions = round_4_data
+
+        logger.info(f"questions round 4 :{questions}")
+
+        # stt = question_index
+        # if difficulty == "Dễ":
+        #     stt = stt
+        # elif difficulty == "Trung bình":
+        #     stt = stt + 20
+        # else:
+        #     stt = stt + 40
         if question_index is not None:
             if 0 <= question_index < len(questions):
                 return questions[question_index]

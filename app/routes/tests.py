@@ -662,25 +662,34 @@ def send_score_to_player(
             player_answer = get_all_player_answer(room_id)
             logger.info(f"player answer in scoring {player_answer}")
 
+            # Reset all players' is_correct to False at the start of scoring
+            # This ensures we only flash players who are correct for THIS scoring event
+            for player in player_answer:
+                player["is_correct"] = False
+                set_player_answer(room_id, player["uid"], player)
+
             # for player in player_answer:
             #     if "round_scores" not in player:
             #         player["round_scores"] = {} 
             # }
 
             if is_obstacle_correct:
+                # Set the correct player as correct AFTER the reset
                 for player in player_answer:
                     if player["stt"] == stt:
                         player["score"] += obstacle_point
                         player["round_scores"][int(round)] += obstacle_point
+                        player["is_correct"] = True  # Set this player as correct
                         set_player_answer(room_id, player["uid"], player)
                         logger.info(f"[Round4-Main] {player['uid']} +{obstacle_point}")
-                
+
+                for player in player_answer:
                     score_list.append({
                         "playerName": player["userName"],
                         "avatar": player["avatar"],
                         "score": player["score"],
-                        "isCorrect": str(player["is_correct"]).lower(),
-                        "isModified": "true",
+                        "isCorrect": player["is_correct"],  # Send as boolean
+                        "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
                         "stt": player["stt"]
                     })
 
@@ -703,9 +712,21 @@ def send_score_to_player(
                     # })
 
 
-            # For rounds 1 and 2, use adaptive scoring if mode is "adaptive"
-            # For rounds 3 and 4, always use custom scoring logic (ignore mode)
+
             if mode == "adaptive" and round in ["1", "2"] and not is_obstacle_correct:
+
+                current_correct_answer = get_current_correct_answer(room_id)
+                logger.info(f"Current correct answers: {current_correct_answer}")
+
+                # Set is_correct for players who actually answered correctly
+                for player in player_answer:
+                    if player.get("answer"):
+                        submitted = normalize_string(player["answer"])
+                        if any(submitted == normalize_string(correct_answer) for correct_answer in current_correct_answer):
+                            player["is_correct"] = True
+                            set_player_answer(room_id, player["uid"], player)
+                            logger.info(f"Player {player['uid']} answered correctly: {player['answer']}")
+
                 correct_players = [p for p in player_answer if p.get("is_correct") == True]
                 correct_count = len(correct_players)
 
@@ -729,7 +750,7 @@ def send_score_to_player(
                     logger.info(f"[Round {round} - correct_count_bonus] {player['uid']} +{points}")
                     set_player_answer(room_id, player["uid"], player)
 
-                try:            
+                try:
                     for player in player_answer:
                         # Check if this player is correct this round
                         # if player["is_correct"] and mode!="adaptive":
@@ -741,8 +762,8 @@ def send_score_to_player(
                             "playerName": player["userName"],
                             "avatar": player["avatar"],
                             "score": player["score"],
-                            "isCorrect": str(player["is_correct"]).lower(),
-                            "isModified": "true",
+                            "isCorrect": player["is_correct"],  # Send as boolean
+                            "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
                             "stt": player["stt"]
                         })
 
@@ -778,7 +799,7 @@ def send_score_to_player(
                         if matched_player:
                             matched_player["score"] += score_rules[f"round{round}"]
                             matched_player["round_scores"][int(round)] += score_rules[f"round{round}"]
-                            matched_player["is_correct"] = True
+                            # Don't set is_correct for Round 3 - no flashing needed
                             set_player_answer(room_id, matched_player["uid"], matched_player)
                             logger.info(f"Updated player {matched_player['uid']} score for round 3")
 
@@ -855,6 +876,22 @@ def send_score_to_player(
                     raise
 
                 try:
+                    # For manual scoring, also need to determine correct players first
+                    if mode != "adaptive" and round in ["1", "2"]:
+                        current_correct_answer = get_current_correct_answer(room_id)
+                        logger.info(f"Current correct answers for manual scoring: {current_correct_answer}")
+
+                        # Set is_correct for players who actually answered correctly
+                        for player in player_answer:
+                            if player.get("answer"):
+                                submitted = normalize_string(player["answer"])
+                                if any(submitted == normalize_string(correct_answer) for correct_answer in current_correct_answer):
+                                    player["is_correct"] = True
+                                    set_player_answer(room_id, player["uid"], player)
+                                    logger.info(f"Player {player['uid']} answered correctly: {player['answer']}")
+
+                    correct_players = [p for p in player_answer if p.get("is_correct") == True]
+
                     for player in player_answer:
                         # Check if this player is correct this round
                         # Only apply manual scoring for rounds 1 and 2
@@ -869,8 +906,8 @@ def send_score_to_player(
                             "playerName": player["userName"],
                             "avatar": player["avatar"],
                             "score": player["score"],
-                            "isCorrect": str(player["is_correct"]).lower(),
-                            "isModified": "true",
+                            "isCorrect": player["is_correct"],  # Send as boolean
+                            "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
                             "stt": player["stt"]
                         })
 
@@ -900,14 +937,50 @@ def send_score_to_player(
             raise
 
         try:
-            logger.info("Attempting to submit answer")
+            logger.info("Attempting to reset players for next round")
+            # Reset player states for next round but don't update Firebase immediately
+            # This prevents overwriting the flash state before it can be displayed
             for player in player_answer:
                 player["is_correct"] = False
                 player["was_deducted_this_round"] = False
-                set_player_answer(room_id, player["uid"], player)
-                logger.info(f"player {player}")
+                # Don't call set_player_answer here - it would overwrite the flash state
+                logger.info(f"Reset player {player['uid']} for next round")
 
-            
+            # Send scores without flashing when round ends
+            score_list = []
+            for player in player_answer:
+                score_list.append({
+                    "playerName": player["userName"],
+                    "avatar": player["avatar"],
+                    "score": player["score"],
+                    "isCorrect": False,  # Reset to false (boolean)
+                    "isModified": False,  # No flashing during round transition (boolean)
+                    "stt": player["stt"]
+                })
+            send_score(room_id, mode, score_list)
+
+
+            import threading
+            import time
+
+            def delayed_reset():
+                time.sleep(5)  # Wait 3 seconds for flash to complete
+                try:
+                    current_players = get_all_player_answer(room_id)  # Get fresh data
+                    for player in current_players:
+                        player["is_correct"] = False
+                        player["was_deducted_this_round"] = False
+                        set_player_answer(room_id, player["uid"], player)
+                        logger.info(f"Delayed reset completed for player {player['uid']}")
+                except Exception as e:
+                    logger.error(f"Error in delayed reset: {str(e)}")
+
+            # Start the delayed reset in a separate thread
+            reset_thread = threading.Thread(target=delayed_reset)
+            reset_thread.daemon = True  # Thread will die when main program exits
+            reset_thread.start()
+            logger.info("Started delayed reset thread (5 seconds)")
+
             firebase_data = {
                 player["stt"]: {
                     "playerName": player["userName"],
