@@ -33,12 +33,12 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
+DATABASE_URL = os.getenv("DATABASE_URL")
 app = FastAPI()
 
 cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)  # Replace with your Firebase service account key file path
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://htm-be-default-rtdb.asia-southeast1.firebasedatabase.app/'  # For Realtime Database
+    'databaseURL': DATABASE_URL  # For Realtime Database
 })
 
 
@@ -60,7 +60,7 @@ app.include_router(history_routers)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://28a2-2402-9d80-a50-f638-115b-68ac-7642-3852.ngrok-free.app"],  # Specify allowed origins
+    allow_origins=["*"],  # Specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],  # Specify allowed methods
     allow_headers=["*"],  # Specify allowed headers
