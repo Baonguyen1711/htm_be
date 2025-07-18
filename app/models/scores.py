@@ -5,7 +5,6 @@ class Score(BaseModel):
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
 
-    # Define fields as optional; add more as needed
     playerName: str | None = None
     avatar: str | None = None 
     score: int | None = None

@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException
 from app.models import User
 from app.services.firestore_service import add_user_to_firestore, get_user_from_firestore
 from app.services.realtime_service import send_realtime_notification
-
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 users_router = APIRouter()
 
 # API: Tạo người dùng

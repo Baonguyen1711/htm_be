@@ -7,12 +7,14 @@ from starlette.requests import Request
 class S3Router:
     def __init__(self, s3_service: S3Service):
         self.s3_service = s3_service
-        self.router = APIRouter()
+        self.router = APIRouter(prefix="/api/s3")
 
-        self.router.get("/api/s3/presigned-url")(self.generate_presigned_url)
-        self.router.delete("/api/s3/files/{key}")(self.delete_file)
-        self.router.get("/api/s3/files/{key}")(self.download_file)
-        self.router.post("/api/s3/save-file-key")(self.save_file_key) 
+        self.router.get("/presigned-url")(self.generate_presigned_url)
+        self.router.get("/files/{key}")(self.download_file)
+
+        self.router.delete("/files/{key}")(self.delete_file)
+        
+        self.router.post("/save-file-key")(self.save_file_key) 
 
     def generate_presigned_url(self, extension: str = Query(...), content_type: str = Query(...)) -> Dict[str, str]:
         try:
@@ -57,7 +59,6 @@ class S3Router:
             if not authenticated_uid or not file_key:
                 raise HTTPException(status_code=400, detail="Missing userId or fileKey")
 
-            # Save file key to Firestore/DB/etc.
             save_file_key_for_user(authenticated_uid, file_key, description)
 
             return {"message": "File key saved successfully", "userId": authenticated_uid, "fileKey": file_key}

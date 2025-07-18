@@ -47,7 +47,7 @@ def send_currrent_turn_to_player(stt:int, room_id:str):
 def send_round_2_grid_to_player(grid: List[List[str]], room_id:str):
     logger.info(f"question {grid}")
     ref = db.reference(f"/rooms/{room_id}/grid")
-    ref.set( grid)
+    ref.set(grid)  
 
 def send_answer_to_player(answer: str, room_id:str):
     logger.info(f"answer {answer}")
@@ -95,7 +95,7 @@ def send_incorrect_row_to_player(room_id: str, selected_row_number: str, is_row:
     })
 
 
-def send_correct_row_to_player(room_id: str, selected_row_number: str, correct_answer: str, marked_character_index: str, is_row:bool, word_length: int):
+def send_correct_row_to_player(room_id: str, selected_row_number: str, correct_answer: str, marked_character_index: str, is_row:bool):
     logger.info(f"answer {room_id}")
     logger.info(f"marked_character_index {marked_character_index}")
 
@@ -169,7 +169,7 @@ def send_obstacle(room_id:str, obstacle: str, placementArray: List[PlacementArra
         "placementArray": placementArray
     })
 
-def buzz_first(room_id:str,stt:str, player_name: str):
+def buzz_first(room_id:str,player_name: str):
     buzz_ref = db.reference(f"rooms/{room_id}/buzzedPlayer")
 
     def transaction_update(current_value):

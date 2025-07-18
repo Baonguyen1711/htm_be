@@ -1,31 +1,41 @@
 from fastapi import FastAPI
-from app.routes.tests import test_routers
-from app.routes.rooms import room_routers
-from app.routes.auth import auth_routers
-from app.routes.buzz import buzz_routers
-from app.routes.star import star_routers
-from app.routes.history import history_routers
-from app.services.s3_service import S3Service
-from app.services.sound_service import SoundService
+from app.routes.tests import TestRouter
+from app.routes.rooms import RoomRouter
+from app.routes.auth import AuthRouter
+from app.routes.buzz import BuzzRouter
+from app.routes.star import StarRouter
+from app.routes.history import HistoryRouter
 from app.routes.s3 import S3Router
 from app.routes.sound import SoundRouter
+from app.routes.game import GameRouter
+
+from app.services.s3_service import S3Service
+from app.services.sound_service import SoundService
+from app.services.test_service import TestService
+from app.services.auth_service import AuthService
+from app.services.history_service import HistoryService
+from app.services.room_service import RoomService
+from app.services.gameService.game_data_service import GameDataService
+from app.services.gameService.game_signal_service import GameSignalService
+
+from app.repositories.firestore.test_repository import TestRepository
+from app.repositories.firestore.room_repository import RoomRepository
+from app.repositories.firestore.question_repository import QuestionRepository
+from app.repositories.firestore.user_repository import UserRepository
+from app.repositories.firestore.history_repository import HistoryRepository
+from app.repositories.realtimedb.game_repository import GameRepository
+from app.repositories.realtimedb.realtime_question_repository import RealtimeQuestionRepository
+
+
 from fastapi.middleware.cors import CORSMiddleware
 # from .middleware.auth import AuthMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from fastapi import HTTPException, status, Depends
 import firebase_admin
 from firebase_admin import auth, credentials
-from .database import db
-import time
-import traceback
 from dotenv import load_dotenv
 import os
-
-
-
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -42,21 +52,42 @@ firebase_admin.initialize_app(cred, {
 })
 
 
+test_repository = TestRepository()
+room_repository = RoomRepository()
+question_repository = QuestionRepository()
+user_repository = UserRepository()
+history_repository = HistoryRepository()
+game_repository = GameRepository()
+realtime_question_repository = RealtimeQuestionRepository()
+
+test_service = TestService(test_repository, question_repository, realtime_question_repository)
+game_data_service = GameDataService(game_repository, test_service)
+game_signal_service = GameSignalService(game_repository, test_service)
 s3_service = S3Service()  
 sound_service = SoundService()
+auth_service = AuthService(room_repository, user_repository)
+history_service = HistoryService(history_repository)
+room_service = RoomService(room_repository, game_repository)
 
 sound_router = SoundRouter(sound_service)
 s3_router = S3Router(s3_service)
+test_routers = TestRouter(test_service)
+room_routers = RoomRouter(room_service)
+auth_routers = AuthRouter(auth_service)
+buzz_routers = BuzzRouter(game_signal_service)
+game_routers = GameRouter(game_data_service,game_signal_service, test_service)
+star_routers = StarRouter()
+history_routers = HistoryRouter(history_service)
 
 app.include_router(s3_router.router)
 app.include_router(sound_router.router)
-# Đăng ký router từ module routes
-app.include_router(test_routers)
-app.include_router(room_routers)
-app.include_router(auth_routers)
-app.include_router(buzz_routers)
-app.include_router(star_routers)
-app.include_router(history_routers)
+app.include_router(test_routers.router)
+app.include_router(room_routers.router)
+app.include_router(auth_routers.router)
+app.include_router(buzz_routers.router)
+app.include_router(star_routers.router)
+app.include_router(game_routers.router)
+app.include_router(history_routers.router)
 
 app.add_middleware(
     CORSMiddleware,
