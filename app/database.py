@@ -6,11 +6,11 @@ import os
 
 load_dotenv()
 
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 # Tạo Firestore client
 def get_db():
-    credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
+    credentials = GOOGLE_APPLICATION_CREDENTIALS
     db = firestore.Client(credentials=credentials)
     return db
 

@@ -32,11 +32,11 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 DATABASE_URL = os.getenv("DATABASE_URL")
 app = FastAPI()
 
-cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)  # Replace with your Firebase service account key file path
+cred = GOOGLE_APPLICATION_CREDENTIALS  # Replace with your Firebase service account key file path
 firebase_admin.initialize_app(cred, {
     'databaseURL': DATABASE_URL  # For Realtime Database
 })
