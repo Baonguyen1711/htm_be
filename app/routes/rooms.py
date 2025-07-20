@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, File, UploadFile, Body
+from fastapi import APIRouter
 from starlette.requests import Request
 from ..models.questions import UpdateQuestionRequest, Grid
 from ..models.users import User
@@ -7,6 +7,7 @@ import traceback
 from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player, show_rules, hide_rules
 from ..services.room_service import RoomService
 from ..helper.exception import handle_exceptions
+from ..dependencies.router_dependencies import get_room_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,8 +15,9 @@ logger = logging.getLogger(__name__)
 room_routers = APIRouter()
 
 class RoomRouter:
-    def __init__(self,room_service: RoomService):
-        self.room_service = room_service
+    def __init__(self, room_service: RoomService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.room_service = room_service or get_room_service()
         self.router = APIRouter(prefix="/api/room")
 
         self.router.get("")(self.get_rooms_by_user_id)

@@ -4,8 +4,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TestRepository(BaseRepository):
-    def __init__(self):
-        super().__init__("tests")
+    def __init__(self, database):
+        super().__init__("tests", database)
     
     def get_test_by_id(self, test_id):
         return self.get_document(test_id)

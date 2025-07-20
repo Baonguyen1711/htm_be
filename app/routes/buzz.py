@@ -5,12 +5,14 @@ import logging
 from ..helper.exception import handle_exceptions
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+from ..dependencies.router_dependencies import get_game_signal_service
 
 buzz_routers = APIRouter()
 
 class BuzzRouter:
-    def __init__(self, game_signal_service: GameSignalService):
-        self.game_signal_service = game_signal_service
+    def __init__(self, game_signal_service: GameSignalService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.game_signal_service = game_signal_service or get_game_signal_service()
         self.router = APIRouter(prefix="/api/buzz")
 
         self.router.post("/")(self.buzz_first)

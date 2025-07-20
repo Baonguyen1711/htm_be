@@ -1,8 +1,8 @@
 from .base import BaseRepository
 
 class QuestionRepository(BaseRepository):
-    def __init__(self):
-        super().__init__("questions")
+    def __init__(self, database):
+        super().__init__("questions", database)
     
     def get_question_by_id(self, question_id):
         return self.get_document(question_id)

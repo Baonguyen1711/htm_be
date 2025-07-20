@@ -3,14 +3,16 @@ from starlette.requests import Request
 from ..models.history import History
 from ..services.history_service import HistoryService
 from ..helper.exception import handle_exceptions
+from ..dependencies.router_dependencies import get_history_service
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class HistoryRouter:
-    def __init__(self, history_service: HistoryService):
-        self.history_service = history_service
+    def __init__(self, history_service: HistoryService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.history_service = history_service or get_history_service()
         self.router = APIRouter(prefix="/api/history")
 
         self.router.post("/update")(self.update_match_history)

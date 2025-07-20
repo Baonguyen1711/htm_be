@@ -1,12 +1,15 @@
 from typing import List, Optional
+from fastapi import Depends
 from ...repositories.realtimedb.game_repository import GameRepository
 from ...services.test_service import TestService
+# FIXED: Import from service_dependencies to break circular import
+from ...dependencies.service_dependencies import get_game_repository, get_test_service
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class GameSignalService:
-    def __init__(self, game_repository: GameRepository, test_service: TestService):
+    def __init__(self, game_repository: GameRepository = Depends(get_game_repository), test_service: TestService =Depends(get_test_service)):
         self.game_repository = game_repository
         self.test_service = test_service
 

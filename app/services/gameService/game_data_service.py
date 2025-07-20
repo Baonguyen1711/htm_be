@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from fastapi import HTTPException, logger
+from fastapi import HTTPException, logger, Depends
 from firebase_admin import db
 
 from ...models.scores import Score, ScoreRule
@@ -8,15 +8,16 @@ from ...util.string_processing import normalize_string
 from ...repositories.realtimedb.game_repository import GameRepository
 from ..test_service import TestService
 from ...models.questions import Answer, Grid, PlacementArray
-from ...models.scores import  ScoreRule
+from ...models.scores import ScoreRule
+# FIXED: Import from service_dependencies to break circular import
+from ...dependencies.service_dependencies import get_game_repository, get_test_service
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class GameDataService:
-    def __init__(self, game_repository: GameRepository, test_service: TestService):
+    def __init__(self, game_repository: GameRepository = Depends(get_game_repository), test_service: TestService = Depends(get_test_service)):
         self.game_repository = game_repository
         self.test_service = test_service
-
 
     def send_grid(self, room_id: str, grid: Grid):
         self.game_repository.set_round_2_grid(room_id, grid.grid)
@@ -376,7 +377,7 @@ class GameDataService:
         for player_answer in player_answer_list:
             logger.info(f"player_answer {player_answer}")
             player_answer["is_correct"] = False
-            self.set_single_player_answer(room_id, player_answer["uid"], player_answer_list)
+            self.set_single_player_answer(room_id, player_answer["uid"], player_answer)
         
         self.obstacle_score(room_id, is_obstacle_correct, player_answer_list, stt, obstacle_point, score_list)
             

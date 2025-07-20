@@ -3,10 +3,11 @@ from typing import Dict
 from app.services.s3_service import S3Service
 from app.services.firestore_service import save_file_key_for_user
 from starlette.requests import Request
-
+from ..dependencies.router_dependencies import get_s3_service
 class S3Router:
-    def __init__(self, s3_service: S3Service):
-        self.s3_service = s3_service
+    def __init__(self, s3_service: S3Service = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.s3_service = s3_service or get_s3_service()
         self.router = APIRouter(prefix="/api/s3")
 
         self.router.get("/presigned-url")(self.generate_presigned_url)

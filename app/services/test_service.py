@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import logging
-from fastapi import FastAPI, Depends, UploadFile
+from fastapi import FastAPI, Depends, UploadFile, Depends
 
 from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question, get_test_by_test_id
 from .cache_service import get_cached_test, set_cached_test, clear_cached_test
@@ -11,6 +11,8 @@ from fastapi import HTTPException, status, Depends
 from ..repositories.firestore.test_repository import TestRepository
 from ..repositories.firestore.question_repository import QuestionRepository
 from ..repositories.realtimedb.realtime_question_repository import RealtimeQuestionRepository
+from ..dependencies.service_dependencies import get_test_repository, get_question_repository, get_realtime_question_repository
+
 from ..util.file_processing import process_excel_file
 from google.cloud import firestore
 import base64
@@ -19,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TestService:
-    def __init__(self, test_repository: TestRepository, question_repository: QuestionRepository, realtime_question_repository: RealtimeQuestionRepository):
+    def __init__(self, test_repository: TestRepository = Depends(get_test_repository), question_repository: QuestionRepository = Depends(get_question_repository), realtime_question_repository: RealtimeQuestionRepository = Depends(get_realtime_question_repository)):
         self.test_repository = test_repository
         self.question_repository = question_repository
         self.realtime_question_repository = realtime_question_repository

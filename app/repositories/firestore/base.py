@@ -2,8 +2,8 @@ import bcrypt
 from ...database import db
 
 class BaseRepository:
-    def __init__(self, collection_name: str):
-        self.database = db
+    def __init__(self, collection_name: str, database):
+        self.database = database
         self.collection = self.database.collection(collection_name)
 
     #create a new document with optional document_id

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, File, UploadFile
-from fastapi import FastAPI, Depends, UploadFile
+from fastapi import FastAPI, UploadFile
 from starlette.requests import Request
 
 from ..models.questions import UpdateQuestionRequest, Answer, Grid, PlacementArray
@@ -11,14 +11,18 @@ from app.stores.player_store import get_player_info
 from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question, upload_single_question_to_firestore
 from ..services.test_service import TestService
 from ..helper.exception import handle_exceptions
+# FIXED: Move import outside of class to fix circular import
+from ..dependencies.router_dependencies import get_test_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class TestRouter:
-    def __init__(self, test_service: TestService):
-        self.test_service = test_service
+
+    def __init__(self, test_service: TestService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.test_service = test_service or get_test_service()
         self.router = APIRouter(prefix="/api/test")
 
         #GET

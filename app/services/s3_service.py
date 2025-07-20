@@ -1,6 +1,5 @@
 import boto3
 import uuid
-from fastapi import UploadFile
 from botocore.exceptions import ClientError
 from typing import Dict, Optional
 from io import BytesIO

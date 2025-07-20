@@ -3,7 +3,6 @@ from app.models.buzz import BuzzRequest
 from ..helper.exception import handle_exceptions
 import logging
 import traceback
-
 from ..services.realtime_service import set_star
 
 logging.basicConfig(level=logging.INFO)

@@ -2,8 +2,8 @@ from ...models.history import History
 from .base import BaseRepository
 
 class HistoryRepository(BaseRepository):
-    def __init__(self):
-        super().__init__("histories")
+    def __init__(self, database):
+        super().__init__("histories", database)
     
     def update_history(self, user_id: str, data: History):
         self.update_document(user_id, data)

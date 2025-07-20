@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from app.routes.tests import TestRouter
 from app.routes.rooms import RoomRouter
 from app.routes.auth import AuthRouter
@@ -9,22 +9,6 @@ from app.routes.s3 import S3Router
 from app.routes.sound import SoundRouter
 from app.routes.game import GameRouter
 
-from app.services.s3_service import S3Service
-from app.services.sound_service import SoundService
-from app.services.test_service import TestService
-from app.services.auth_service import AuthService
-from app.services.history_service import HistoryService
-from app.services.room_service import RoomService
-from app.services.gameService.game_data_service import GameDataService
-from app.services.gameService.game_signal_service import GameSignalService
-
-from app.repositories.firestore.test_repository import TestRepository
-from app.repositories.firestore.room_repository import RoomRepository
-from app.repositories.firestore.question_repository import QuestionRepository
-from app.repositories.firestore.user_repository import UserRepository
-from app.repositories.firestore.history_repository import HistoryRepository
-from app.repositories.realtimedb.game_repository import GameRepository
-from app.repositories.realtimedb.realtime_question_repository import RealtimeQuestionRepository
 
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,50 +18,70 @@ from starlette.requests import Request
 from starlette.responses import Response
 import firebase_admin
 from firebase_admin import auth, credentials
-from dotenv import load_dotenv
+
 import os
 import logging
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
-
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not firebase_admin._apps:
+    cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': DATABASE_URL
+    })
+
 
 app = FastAPI()
 
-cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)  # Replace with your Firebase service account key file path
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://htm-be-default-rtdb.asia-southeast1.firebasedatabase.app/'  # For Realtime Database
-})
+# cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)  # Replace with your Firebase service account key file path
+# firebase_admin.initialize_app(cred, {
+#     'databaseURL': 'https://htm-be-default-rtdb.asia-southeast1.firebasedatabase.app/'  # For Realtime Database
+# })
 
+# app.include_router(S3Router(get_s3_service()).router)
+# app.include_router(SoundRouter(get_sound_service()).router)
+# app.include_router(TestRouter(get_test_service()).router)
+# app.include_router(RoomRouter(get_room_service()).router)
+# app.include_router(AuthRouter().router)
+# app.include_router(BuzzRouter(get_game_signal_service()).router)
+# app.include_router(GameRouter(get_game_data_service(), get_game_signal_service(), get_test_service()).router)
+# app.include_router(HistoryRouter(get_history_service()).router)
 
-test_repository = TestRepository()
-room_repository = RoomRepository()
-question_repository = QuestionRepository()
-user_repository = UserRepository()
-history_repository = HistoryRepository()
-game_repository = GameRepository()
-realtime_question_repository = RealtimeQuestionRepository()
+# test_repository = TestRepository()
+# room_repository = RoomRepository()
+# question_repository = QuestionRepository()
+# user_repository = UserRepository()
+# history_repository = HistoryRepository()
+# game_repository = GameRepository()
+# realtime_question_repository = RealtimeQuestionRepository()
 
-test_service = TestService(test_repository, question_repository, realtime_question_repository)
-game_data_service = GameDataService(game_repository, test_service)
-game_signal_service = GameSignalService(game_repository, test_service)
-s3_service = S3Service()  
-sound_service = SoundService()
-auth_service = AuthService(room_repository, user_repository)
-history_service = HistoryService(history_repository)
-room_service = RoomService(room_repository, game_repository)
+# test_service = TestService(test_repository, question_repository, realtime_question_repository)
+# game_data_service = GameDataService(game_repository, test_service)
+# game_signal_service = GameSignalService(game_repository, test_service)
+# s3_service = S3Service()  
+# sound_service = SoundService()
+# auth_service = AuthService(room_repository, user_repository)
+# history_service = HistoryService(history_repository)
+# room_service = RoomService(room_repository, game_repository)
 
-sound_router = SoundRouter(sound_service)
-s3_router = S3Router(s3_service)
-test_routers = TestRouter(test_service)
-room_routers = RoomRouter(room_service)
-auth_routers = AuthRouter(auth_service)
-buzz_routers = BuzzRouter(game_signal_service)
-game_routers = GameRouter(game_data_service,game_signal_service, test_service)
-star_routers = StarRouter()
-history_routers = HistoryRouter(history_service)
+# FIXED: Create services manually and pass to routers (Manual Dependency Injection)
+from app.dependencies.router_dependencies import (
+    get_s3_service, get_sound_service, get_test_service, get_room_service,
+    get_auth_service, get_game_signal_service, get_game_data_service,
+    get_history_service
+)
+
+# Create routers with manually injected services
+sound_router = SoundRouter(get_sound_service())
+s3_router = S3Router(get_s3_service())
+test_routers = TestRouter(get_test_service())
+room_routers = RoomRouter(get_room_service())
+auth_routers = AuthRouter(get_auth_service())
+buzz_routers = BuzzRouter(get_game_signal_service())
+game_routers = GameRouter(get_game_data_service(), get_game_signal_service(), get_test_service())
+star_routers = StarRouter()  # This one might not need services
+history_routers = HistoryRouter(get_history_service())
 
 app.include_router(s3_router.router)
 app.include_router(sound_router.router)

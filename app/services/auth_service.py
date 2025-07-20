@@ -1,8 +1,10 @@
 from fastapi import HTTPException, Request, logger
 from fastapi.responses import JSONResponse
 from firebase_admin import auth
-from ..repositories.firestore.room_repository import RoomRepository 
+from ..repositories.firestore.room_repository import RoomRepository
 from ..repositories.firestore.user_repository import UserRepository
+# FIXED: Import from service_dependencies instead of router_dependencies to break circular import
+from ..dependencies.service_dependencies import get_room_repository, get_user_repository
 import jwt
 import time
 import os
@@ -15,9 +17,10 @@ ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes
 REFRESH_TOKEN_EXPIRE_SECONDS = 4* 60 * 60  # 7 days
 
 class AuthService:
-    def __init__(self, room_repository: RoomRepository, user_repository: UserRepository):
-        self.room_repository = room_repository
-        self.user_repository = user_repository
+    def __init__(self, room_repository: RoomRepository = None, user_repository: UserRepository = None):
+        # FIXED: Accept actual repository instances, not Depends() objects
+        self.room_repository = room_repository or get_room_repository()
+        self.user_repository = user_repository or get_user_repository()
 
     def verify_token(self, token: str):
         try:

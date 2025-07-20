@@ -12,15 +12,17 @@ from ..services.gameService.game_data_service import GameDataService
 from ..services.gameService.game_signal_service import GameSignalService
 from ..services.test_service import TestService
 from ..helper.exception import handle_exceptions
+from ..dependencies.router_dependencies import get_game_data_service, get_game_signal_service, get_test_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class GameRouter:
-    def __init__(self,game_data_service: GameDataService, game_signal_service: GameSignalService, test_service: TestService):
-        self.game_data_service = game_data_service
-        self.game_signal_service = game_signal_service
-        self.test_service = test_service
+    def __init__(self, game_data_service: GameDataService = None, game_signal_service: GameSignalService = None, test_service: TestService = None):
+        # FIXED: Accept actual service instances, not Depends() objects
+        self.game_data_service = game_data_service or get_game_data_service()
+        self.game_signal_service = game_signal_service or get_game_signal_service()
+        self.test_service = test_service or get_test_service()
         self.router = APIRouter(prefix="/api/game")
 
 
@@ -54,16 +56,11 @@ class GameRouter:
 
     @handle_exceptions
     def set_cell_color(self, room_id: str,row_index:str, col_index:str,color: str):
-
         self.game_data_service.send_cell_color(room_id,row_index,col_index,color)
-
-
 
     @handle_exceptions
     def send_grid_to_player(self, room_id: str, grid: Grid):
         self.game_data_service.send_grid(room_id, grid.grid)
-
-        
 
     @handle_exceptions
     def set_row_action(self, room_id: str, row_number: str, action:str, word_length: int,correct_answer: Optional[str] = None ,marked_characters_index: Optional[str] = None, is_row:Optional[bool] = None):

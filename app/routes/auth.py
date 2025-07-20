@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 from starlette.responses import Response
 import logging
 from ..services.auth_service import AuthService
 from ..helper.exception import handle_exceptions
+from ..dependencies.router_dependencies import get_auth_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,8 +15,9 @@ ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes
 REFRESH_TOKEN_EXPIRE_SECONDS = 4* 60 * 60  # 7 days
 
 class AuthRouter:
-    def __init__(self, auth_service: AuthService):
-        self.auth_service = auth_service
+    def __init__(self, auth_service: AuthService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.auth_service = auth_service or get_auth_service()
 
         self.router = APIRouter(prefix="/api/auth")
 

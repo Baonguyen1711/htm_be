@@ -3,17 +3,19 @@ import random
 import time
 from typing import List
 import bcrypt
-from fastapi import HTTPException, logger
+from fastapi import HTTPException, logger, Depends
 
 from ..models.users import User
 from ..repositories.firestore.room_repository import RoomRepository
 from ..repositories.realtimedb.game_repository import GameRepository
+# FIXED: Import from service_dependencies instead of router_dependencies to break circular import
+from ..dependencies.service_dependencies import get_room_repository, get_game_repository
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RoomService:
-    def __init__(self, room_repository:RoomRepository, game_repository: GameRepository):
+    def __init__(self, room_repository:RoomRepository = Depends(get_room_repository), game_repository: GameRepository = Depends(get_game_repository)):
         self.room_repository = room_repository
         self.game_repository = game_repository
 

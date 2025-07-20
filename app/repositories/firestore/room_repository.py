@@ -1,8 +1,8 @@
 from .base import BaseRepository
 
 class RoomRepository(BaseRepository):
-    def __init__(self):
-        super().__init__("rooms")
+    def __init__(self, database):
+        super().__init__("rooms", database)
     
     def get_room_by_id(self, room_id):
         return self.get_document(room_id)
