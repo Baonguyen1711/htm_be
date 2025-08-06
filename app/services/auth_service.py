@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Request, logger
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from firebase_admin import auth
 from ..repositories.firestore.room_repository import RoomRepository
@@ -13,8 +13,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes 
-REFRESH_TOKEN_EXPIRE_SECONDS = 4* 60 * 60  # 7 days
+ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes
+REFRESH_TOKEN_EXPIRE_SECONDS = 7 * 24 * 60 * 60  # 7 days (was incorrectly 4 hours)
 
 class AuthService:
     def __init__(self, room_repository: RoomRepository = None, user_repository: UserRepository = None):
@@ -37,7 +37,7 @@ class AuthService:
             "roomId": room_id,
             "role": role,
             "userId": user_id or "anon_" + str(int(time.time() * 1000)),
-            "exp": time.time() + 30*60  
+            "exp": time.time() + ACCESS_TOKEN_EXPIRE_SECONDS  # Use consistent expiration time
         }
         token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
         return token
@@ -78,22 +78,30 @@ class AuthService:
         else:
             raise HTTPException(status_code=403, detail="You do not have access to this room")
 
+        # Calculate expiration times
+        access_exp_time = time.time() + ACCESS_TOKEN_EXPIRE_SECONDS
+        refresh_exp_time = time.time() + REFRESH_TOKEN_EXPIRE_SECONDS
+
         access_payload = {
             "roomId": room_id,
             "role": role,
             "userId": user_id,
-            "exp": time.time() + ACCESS_TOKEN_EXPIRE_SECONDS
+            "exp": access_exp_time
         }
         access_token = jwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
-
 
         refresh_payload = {
             "userId": user_id,
             "roomId": room_id,
             "role": role,
-            "exp": time.time() + REFRESH_TOKEN_EXPIRE_SECONDS
+            "exp": refresh_exp_time
         }
         refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
+
+        # Log token expiration times for debugging
+        logger.info(f"Generated tokens for user {user_id} (role: {role}) in room {room_id}")
+        logger.info(f"Access token expires at: {time.ctime(access_exp_time)} (in {ACCESS_TOKEN_EXPIRE_SECONDS/60} minutes)")
+        logger.info(f"Refresh token expires at: {time.ctime(refresh_exp_time)} (in {REFRESH_TOKEN_EXPIRE_SECONDS/3600} hours)")
         
 
         return access_token, refresh_token

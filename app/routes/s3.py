@@ -18,10 +18,22 @@ class S3Router:
         self.router.post("/save-file-key")(self.save_file_key) 
 
     def generate_presigned_url(self, extension: str = Query(...), content_type: str = Query(...)) -> Dict[str, str]:
+        import time
+        start_time = time.time()
+
         try:
+            # Log request details for debugging
+            print(f"🔗 Generating presigned URL - Extension: {extension}, Content-Type: {content_type}")
+
             result = self.s3_service.presigned_url(extension, content_type)
+
+            end_time = time.time()
+            print(f"✅ Presigned URL generated in {(end_time - start_time) * 1000:.2f}ms")
+
             return result
         except Exception as e:
+            end_time = time.time()
+            print(f"❌ Presigned URL generation failed after {(end_time - start_time) * 1000:.2f}ms: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
     def delete_file(self, key: str):

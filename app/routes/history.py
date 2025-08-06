@@ -17,13 +17,13 @@ class HistoryRouter:
 
         self.router.post("/update")(self.update_match_history)
 
-        self.router.get("/retrive")(self.get_history_by_user)
+        self.router.get("/retrieve")(self.get_history_by_user)
 
     @handle_exceptions
-    def update_match_history(self, data: History, request: Request):
+    def update_match_history(self, room_id:str, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]
-        self.history_service.update_match_history(data, authenticated_uid)
+        self.history_service.update_match_history(room_id, authenticated_uid)
 
     @handle_exceptions
     def get_history_by_user(self, request: Request):

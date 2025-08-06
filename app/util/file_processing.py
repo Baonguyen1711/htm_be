@@ -3,6 +3,9 @@ from fastapi import FastAPI, Depends, UploadFile
 from openpyxl import load_workbook
 from io import BytesIO
 from ..repositories.firestore.test_repository import TestRepository
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 async def process_excel_file(test_id: str, file: UploadFile, test_repository: TestRepository):
@@ -18,14 +21,17 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
     }
     try:
         # Duyệt qua từng sheet trong workbook
+        logger.info(f"Found sheets in workbook: {workbook.sheetnames}")
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            logger.info(f"sheet: {sheet}")
+            logger.info(f"Processing sheet: '{sheet_name}' (lowercase: '{sheet_name.lower()}')")
             data = []
 
             # Đọc từng dòng trong sheet
             for row in sheet.iter_rows(values_only=True):
                 data.append(row)
+
+            logger.info(f"Sheet '{sheet_name}' has {len(data)} rows")
 
             # Xử lý dữ liệu theo tên sheet bằng match-case
             match sheet_name.lower():  # Chuyển thành chữ thường để tránh lỗi
@@ -52,7 +58,7 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
 
                     print(processed_data)
 
-                    process_sheet(processed_data, test_id, "1", test_repository)
+                    process_sheet(processed_data, test_id, 1, test_repository)
 
                 case "round2":
 
@@ -73,7 +79,7 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
                         "round": 2
                     }
 
-                    process_sheet(processed_data, test_id, "2", test_repository)
+                    process_sheet(processed_data, test_id, 2, test_repository)
 
                 case "round3":
                     # Xử lý cho Round 3 (ví dụ: chỉ có question và answer)
@@ -102,7 +108,7 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
 
                     print(processed_data)
 
-                    process_sheet(processed_data, test_id, "3", test_repository)
+                    process_sheet(processed_data, test_id, 3, test_repository)
 
                 case "round4":
                     # Đọc 60 câu hỏi liên tục và đánh ID theo thứ tự
@@ -133,7 +139,7 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
                     }
 
                     print(processed_data)
-                    process_sheet(processed_data, test_id, "4", test_repository)
+                    process_sheet(processed_data, test_id, 4, test_repository)
                 case "turn":
                     # Xử lý cho phân lượt (ví dụ: chỉ có question và answer)
                     processed_data = [
@@ -157,7 +163,8 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
                     process_sheet(processed_data, test_id, "turn", test_repository)
 
                 case _:
-                    logger.warning(f"Sheet không xác định: {sheet_name}")
+                    logger.warning(f"Sheet không xác định: '{sheet_name}' (lowercase: '{sheet_name.lower()}')")
+                    logger.warning(f"Expected sheet names: 'round1', 'round2', 'round3', 'round4', 'turn'")
                     result["sheets"][sheet_name] = {
                         "sheet_name": sheet_name,
                         "content": data,
@@ -176,7 +183,7 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
         await file.close()
 
 
-def process_sheet(processed_data: list, test_id: str, round: str, test_repository: TestRepository):
+def process_sheet(processed_data: list, test_id: str, round: int | str, test_repository: TestRepository):
     if processed_data:  # Chỉ upload nếu có dữ liệu
         upload_result = test_repository.set_test_by_batch(
             questions=processed_data,  # Dữ liệu câu hỏi đã xử lý

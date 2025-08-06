@@ -1,7 +1,7 @@
 import logging
 import traceback
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request, logger
+from typing import Dict, List, Optional
+from fastapi import APIRouter, Body, HTTPException, Request
 from firebase_admin import db
 
 from ..models.scores import Score, ScoreRule
@@ -37,11 +37,14 @@ class GameRouter:
         self.router.post("/row/action")(self.set_row_action)
         self.router.post("/obstacle")(self.open_obstacle)
         self.router.post("/packet/set")(self.set_selected_packet_name)
+        self.router.post("/packet/used")(self.set_used_packet_name)
+        self.router.post("/packet/return")(self.set_return_to_packet_selection)
         self.router.post("/answer")(self.send_answer)
         self.router.post("/round/start")(self.send_start_round_signal)
         self.router.post("/time")(self.send_start_time_signal)
         self.router.post("/submit")(self.submit_answer)
         self.router.post("/turn")(self.update_turn)
+        self.router.post("/player/color")(self.set_player_color)
         self.router.post("/score/rules")(self.apply_score_rule)
         self.router.post("/score")(self.scoring)
         self.router.post("/broadcast")(self.broadcast_answer)
@@ -63,33 +66,37 @@ class GameRouter:
         self.game_data_service.send_grid(room_id, grid.grid)
 
     @handle_exceptions
-    def set_row_action(self, room_id: str, row_number: str, action:str, word_length: int,correct_answer: Optional[str] = None ,marked_characters_index: Optional[str] = None, is_row:Optional[bool] = None):
+    def set_row_action(self, room_id: str, row_number: str, action:str, word_length: int,selected_row_index: int, selected_col_index: int, correct_answer: Optional[str] = None ,marked_characters_index: Optional[str] = None, is_row:Optional[bool] = None):
         if action == "SELECT":
             logger.info("Attempting to send selected row")
-            self.game_data_service.send_selected_row(room_id, row_number,is_row, word_length)
+            self.game_data_service.send_selected_row(room_id, row_number,is_row, word_length,selected_row_index, selected_col_index)
         if action == "CORRECT":
             logger.info(f"marked_character_index {marked_characters_index}")
-            self.game_data_service.send_correct_row(room_id, row_number, correct_answer, marked_characters_index, is_row)
+            self.game_data_service.send_correct_row(room_id, row_number, correct_answer, marked_characters_index, is_row,selected_row_index, selected_col_index)
         if action == "INCORRECT":
             logger.info("Attempting to send incorrect row")
-            self.game_data_service.send_incorrect_row_to_player(room_id, row_number, is_row,word_length)
+            self.game_data_service.send_incorrect_row_to_player(room_id, row_number, is_row,word_length,selected_row_index, selected_col_index)
 
        
         
     @handle_exceptions
-    async def open_obstacle(self, room_id: str, obstacle: str ,request: Request):
+    async def open_obstacle(self, room_id: str, grid: Grid):
 
-        body = await request.json()
-        logger.info(f"Received body: {body}")
-    
-        placementArray = body  
-        self.game_data_service.send_obstacle(room_id, obstacle,placementArray)
+        self.game_data_service.send_obstacle(room_id, grid)
         logger.info("obstacle opened")
 
 
     @handle_exceptions    
     def set_selected_packet_name(self, packet_name: str,room_id:str,request: Request):
         self.game_data_service.send_selected_packet_name_to_player(packet_name,room_id)
+
+    @handle_exceptions    
+    def set_used_packet_name(self, room_id:str,used_packets: List[str] = Body(...)):
+        self.game_data_service.send_used_packet_name_to_player(used_packets,room_id)
+
+    @handle_exceptions    
+    def set_return_to_packet_selection(self, should_return: bool,room_id:str,request: Request):
+        self.game_data_service.send_should_return_to_packet_selection(should_return,room_id)
 
 
     @handle_exceptions
@@ -117,7 +124,7 @@ class GameRouter:
         return questions
 
     @handle_exceptions
-    def prefetch_question(self, test_name:str, round: str, request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[str] | None= None):
+    def prefetch_question(self, test_name:str, round: str, request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None):
 
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -139,21 +146,21 @@ class GameRouter:
 
 
     @handle_exceptions
-    def send_specific_question(self, test_name:str, round: str, room_id: str,request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[str] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
+    def send_specific_question(self, test_name:str, round: str, room_id: str,request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
         user = request.state.user
         authenticated_uid = user["uid"]
         test_data = self.test_service.process_test_data(authenticated_uid, test_name)
         logger.info(f"test_data {test_data}")
-
+        self.game_data_service.reset_player_answer(room_id)
         question = self.test_service.get_specific_question(test_data,round,packet_name, difficulty, question_number=question_number, page=page, limit=limit)
         question_without_answer = self.test_service.get_question_without_answer(question, room_id)
         self.game_data_service.send_question_to_player(room_id,question_without_answer)
         return question
 
     @handle_exceptions                    
-    def send_answer(self, room_id: str,answer:Answer):
+    def send_answer(self, room_id: str):
         logger.info("Attempting to send answer to player")
-        self.game_data_service.send_answer_to_player(answer.answer,room_id)
+        self.game_data_service.send_answer_to_player(room_id)
         logger.info("answer sent!")
 
 
@@ -164,8 +171,8 @@ class GameRouter:
         logger.info("time started")
     
     @handle_exceptions
-    def send_start_round_signal(self, room_id: str, round: str, grid: Grid = None) -> None:
-        self.game_signal_service.set_round_start(room_id, round, grid.grid)
+    def send_start_round_signal(self, room_id: str, round: str) -> None:
+        self.game_signal_service.set_round_start(room_id, round)
     
     @handle_exceptions
     def submit_answer(self, room_id: str, answer: Answer,request: Request):
@@ -175,8 +182,8 @@ class GameRouter:
         
     
     @handle_exceptions
-    def apply_score_rule(self,room_id: str, rules: ScoreRule):
-        self.game_data_service.set_score_rules(room_id, rules)
+    def apply_score_rule(self,room_id: str, score_rules: ScoreRule):
+        self.game_data_service.set_score_rules(room_id, score_rules)
         
     
     @handle_exceptions
@@ -184,7 +191,6 @@ class GameRouter:
             self,
             room_id: str, 
             mode: str,
-            scores: Optional[List[Score]] = None, 
             round: Optional[str] = None, 
             stt: Optional[str] = None,
             is_obstacle_correct: Optional[str] = None,
@@ -194,7 +200,8 @@ class GameRouter:
             difficulty: Optional[str] = None,
             is_take_turn_correct: Optional[str] = None,
             stt_take_turn: Optional[str] = None,
-            stt_taken: Optional[str] = None 
+            stt_taken: Optional[str] = None,
+            scores: Optional[List[Score]] = Body(...), 
         ):
         self.game_data_service.score(
             room_id, 
@@ -221,9 +228,22 @@ class GameRouter:
         return list(player_answer.values())
     
     @handle_exceptions
-    def update_turn(self, turn: int, room_id: str): 
+    def update_turn(self, turn: int, room_id: str):
         self.game_signal_service.send_currrent_turn_to_player(turn,room_id)
         return {"message": "set current turn sucessfully", "stt": turn}
+
+    @handle_exceptions
+    def set_player_color(self, room_id: str, player_stt: str, request_body: dict = Body(...)):
+        """Set color for a specific player in Round 4"""
+        color = request_body.get("color", "")
+        logger.info(f"set_player_color {color}")
+        if color and color.strip():
+            self.game_signal_service.set_player_color(room_id, player_stt, color)
+            return {"data": {"success": True}, "message": f"Color set successfully for player {player_stt}"}
+        else:
+            # Remove color if empty
+            self.game_signal_service.remove_player_color(room_id, player_stt)
+            return {"data": {"success": True}, "message": f"Color removed for player {player_stt}"}
       
     @handle_exceptions
     def show_room_rules(self, room_id: str, round_number: str):

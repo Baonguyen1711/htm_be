@@ -33,7 +33,7 @@ class BaseRepository:
     def get_documents_by_filter(self, filters: list[tuple[str, str, any]]):
         query = self.collection
         for filter_field, operator, filter_value in filters:
-            query = query.where(filter_field, operator, filter_value)
+            query = query.where(field_path=filter_field, op_string=operator, value=filter_value)
         docs = query.stream()
         return [doc.to_dict() for doc in docs]
 

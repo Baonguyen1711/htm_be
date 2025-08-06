@@ -27,6 +27,7 @@ class Answer(BaseModel):
 
 class Grid(BaseModel):
     grid: List[List[str]]
+    obstacle: str | None = None
 
 class PlacementArray(BaseModel):
     row_index: int

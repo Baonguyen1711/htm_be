@@ -107,13 +107,13 @@ class TestService:
 
         for question in [question for question in question_list if question["round"] == 3]:
             grouped_round_3[question["packetName"]].append(question)
-        
+
         for packet_name in grouped_round_3:
             grouped_round_3[packet_name].sort(key=lambda x: x["stt"])
 
         for question in [question for question in question_list if question["round"] == 4]:
             grouped_round_4[question["difficulty"]].append(question)
-        
+
         for packet_name in grouped_round_4:
             grouped_round_4[packet_name].sort(key=lambda x: x["stt"])
 
@@ -138,26 +138,46 @@ class TestService:
         return result
     
     
-    def process_test_file(self, test_name: str, uid: str, file: UploadFile):
+    async def process_test_file(self, test_name: str, uid: str, file: UploadFile):
         existing_test = self.test_repository.get_test_by_test_name(test_name, uid)
-        
+        logger.info(f"existing_test {existing_test}")
+
         if existing_test:
             raise HTTPException(status_code=400, detail=f"Bộ đề với tên '{test_name}' đã tồn tại.")
 
+        # Create test data without testId first
         test_data = {
-            "testId": test_id,
             "testName": test_name,
             "createdAt": firestore.SERVER_TIMESTAMP,
             "owner": uid,
-            "totalQuestions": 0,  
+            "totalQuestions": 0,
             "status": "active"
         }
 
+        # Create the test and get the generated test_id
         test_id = self.test_repository.create_test(test_data)
+        logger.info(f"Created test with ID: {test_id}")
 
-        self.test_repository.update_test(test_id, {"testId": test_id})
+        # Update the test with its own ID
+        update_result = self.test_repository.update_test(test_id, {"testId": test_id})
+        logger.info(f"Updated test with its own ID: {update_result}")
 
-        process_excel_file(test_id,file,self.test_repository)
+        # Process the Excel file
+        processing_result = await process_excel_file(test_id, file, self.test_repository)
+        logger.info(f"Excel file processing result: {processing_result}")
+
+        # Return comprehensive result
+        final_result = {
+            "test_id": test_id,
+            "test_name": test_name,
+            "owner": uid,
+            "filename": file.filename,
+            "processing_result": processing_result,
+            "status": "completed"
+        }
+
+        logger.info(f"Final service result: {final_result}")
+        return final_result
         
 
     def get_packet_name(self, test_data: dict) -> dict:
@@ -173,15 +193,14 @@ class TestService:
         test_data: dict,
         round: str,
         packet_name: Optional[str] = None,
-        difficulty: Optional[str] = None,
         chunk: Optional[int] = None,
-        question_number: Optional[str] = None,
+        question_number: Optional[int] = None,
         page: Optional[int] = 1,
         limit: Optional[int] = 1
     ) -> dict:
 
         try:
-            question_index = int(question_number) - 1 if question_number is not None else None
+            question_index =question_number - 1 if question_number is not None else None
             if question_index is not None and question_index < 0:
                 raise ValueError("Question number must be positive")
         except ValueError:
@@ -227,11 +246,11 @@ class TestService:
             return paginate(questions)
 
         elif round == "4":
-            if not difficulty:
-                raise HTTPException(status_code=400, detail="difficulty is required for round 4")
-            if difficulty not in ["Dễ", "Trung bình", "Khó"]:
-                raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
-            logger.info(f"questions 3 :{test_data['round_4']}")
+            # if not difficulty:
+            #     raise HTTPException(status_code=400, detail="difficulty is required for round 4")
+            # if difficulty not in ["Dễ", "Trung bình", "Khó"]:
+            #     raise HTTPException(status_code=400, detail=f"Invalid difficulty: {difficulty}")
+            # logger.info(f"questions 3 :{test_data['round_4']}")
 
             # Get the actual questions list from the dictionary
             round_4_data = test_data["round_4"]

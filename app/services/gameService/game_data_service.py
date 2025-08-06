@@ -19,8 +19,8 @@ class GameDataService:
         self.game_repository = game_repository
         self.test_service = test_service
 
-    def send_grid(self, room_id: str, grid: Grid):
-        self.game_repository.set_round_2_grid(room_id, grid.grid)
+    def send_grid(self, room_id: str, grid: List[List[str]]):
+        self.game_repository.set_round_2_grid(room_id, grid)
 
     def send_selected_cell(self, room_id: str, row_index: str, col_index:str):
         self.game_repository.set_selected_cell(room_id, row_index, col_index)
@@ -28,17 +28,19 @@ class GameDataService:
     def send_cell_color(self, room_id: str,row_index:str, col_index:str, color:str):
         self.game_repository.set_cell_color(room_id,row_index,col_index, color)
 
-    def send_selected_row(self, room_id:str, selected_row_number:str, is_row: bool, word_length:int):
-        self.game_repository.set_selected_row(room_id, selected_row_number, is_row, word_length)
+    def send_selected_row(self, room_id:str, selected_row_number:str, is_row: bool, word_length:int,selected_row_index: int, selected_col_index: int):
+        self.game_repository.set_selected_row(room_id, selected_row_number, selected_row_index, selected_col_index,  is_row, word_length)
 
-    def send_correct_row(self,room_id: str, selected_row_number: str, correct_answer: str, marked_character_index: str, is_row:bool):
-        self.game_repository.set_correct_row(room_id, selected_row_number, correct_answer, marked_character_index, is_row)
+    def send_correct_row(self,room_id: str, selected_row_number: str, correct_answer: str, marked_character_index: str, is_row:bool, selected_row_index: int, selected_col_index: int):
+        self.game_repository.set_correct_row(room_id, selected_row_number, selected_row_index, selected_col_index,  correct_answer, marked_character_index, is_row)
         
-    def send_incorrect_row_to_player(self,room_id: str, selected_row_number: str, is_row:bool, word_length: int):
-        self.game_repository.set_incorrect_row(room_id,selected_row_number,is_row,word_length)
+    def send_incorrect_row_to_player(self,room_id: str, selected_row_number: str, is_row:bool, word_length: int, selected_row_index: int, selected_col_index: int):
+        self.game_repository.set_incorrect_row(room_id,selected_row_number, selected_row_index, selected_col_index, is_row,word_length)
         
-    def send_answer_to_player(self, answer: str, room_id:str):
-        self.game_repository.send_answer_to_player(answer, room_id)
+    def send_answer_to_player(self, room_id:str):
+        current_correct_answer = self.game_repository.get_current_correct_answer(room_id)
+        logger.info(f"current_correct_answer {current_correct_answer}")
+        self.game_repository.send_answer_to_player(current_correct_answer, room_id)
 
     def send_selected_packet_name_to_player(self, packet:str, room_id:str):
         self.game_repository.send_selected_packet_name_to_player(packet, room_id)
@@ -46,11 +48,17 @@ class GameDataService:
     def send_packet_name_to_player(self, packet_list:List[str], room_id:str):
         self.game_repository.send_packet_name_to_player(packet_list, room_id)
 
+    def send_used_packet_name_to_player(self, used_packet_list:List[str], room_id:str):
+        self.game_repository.set_used_packets(room_id, used_packet_list)
+
+    def send_should_return_to_packet_selection(self, should_return:bool, room_id:str):
+        self.game_repository.set_return_to_topic_selection(room_id, should_return)
+
     def send_question_to_player(self, room_id:str, question: dict):
         self.game_repository.send_question_to_player( room_id,question)
 
-    def send_obstacle(self, room_id:str, obstacle: str, placementArray: List[PlacementArray]):
-        self.game_repository.send_obstacle(room_id,obstacle, placementArray)
+    def send_obstacle(self, room_id:str, grid: Grid):
+        self.game_repository.send_obstacle(room_id,grid)
 
     def set_score_rules(self, room_id: str, rules: ScoreRule) -> None:
         self.game_repository.set_score_rules(room_id, rules)
@@ -75,6 +83,20 @@ class GameDataService:
 
     def set_single_player_answer(self, room_id: str, uid: str, player_answer: Dict[str, Any]):
         self.game_repository.set_single_player_answer(room_id, uid, player_answer)
+
+    def reset_player_answer(self, room_id: str):
+        logger.info(f"reset player answer")
+        current_player_answer_list = self.game_repository.get_player_answer_list(room_id)
+        logger.info(f"current_player_answer_list {current_player_answer_list}")
+        if current_player_answer_list is None:
+            return
+        
+        for player in current_player_answer_list:
+            player["answer"] = ""
+            player["is_correct"] = False
+            player["time"] = 0
+
+        self.game_repository.broadcast_player_answer(room_id, current_player_answer_list)
     
 
     #GET 
@@ -115,6 +137,9 @@ class GameDataService:
 
         player_answer = self.get_player_answer(room_id, uid)
 
+        if not player_answer:
+            return 
+
         logger.info(f"player {player_answer}")
         current_correct_answer = self.get_current_correct_answer(room_id)           
         submitted = normalize_string(answer.answer)
@@ -134,7 +159,7 @@ class GameDataService:
 
         self.set_single_player_answer(room_id, uid, player_answer)
 
-    def obstacle_score(self,room_id: str, is_obstacle_correct: bool, player_answer, stt: str, obstacle_point: int, score_list: List):
+    def obstacle_score(self,room_id: str, is_obstacle_correct: bool, player_answer, stt: str, obstacle_point: int, score_list: List, round: str):
         if is_obstacle_correct:
             for player in player_answer:
                 if player["stt"] == stt:
@@ -170,6 +195,7 @@ class GameDataService:
 
         correct_players = [p for p in player_answers if p.get("is_correct") == True]
         correct_count = len(correct_players)
+        
 
         if correct_count == 4:
             points = 5
@@ -320,8 +346,9 @@ class GameDataService:
             })
 
     def reset_score_list(self, room_id: str, player_answer):
+        logger.info(f"player_answer before reset {player_answer}")
         for player in player_answer:
-            player["is_correct"] = False
+            player["is_correct"] = False    
             player["was_deducted_this_round"] = False
             player["time"] = None
             # Don't call set_player_answer here - it would overwrite the flash state
@@ -338,7 +365,7 @@ class GameDataService:
                 "isModified": False,  # No flashing during round transition (boolean)
                 "stt": player["stt"]
             })
-        self.game_repository.send_scores_list(room_id, score_list)
+        self.game_repository.send_score_list(room_id, score_list)
 
     def update_each_round_score(self, room_id: str, round: str, player_answer):
         firebase_data = {
@@ -379,9 +406,10 @@ class GameDataService:
             player_answer["is_correct"] = False
             self.set_single_player_answer(room_id, player_answer["uid"], player_answer)
         
-        self.obstacle_score(room_id, is_obstacle_correct, player_answer_list, stt, obstacle_point, score_list)
+        self.obstacle_score(room_id, is_obstacle_correct, player_answer_list, stt, obstacle_point, score_list, round)
             
         if mode == "manual" and not is_obstacle_correct:
+            logger.info(f"Scores in manual scoring: {scores}")
             for score in scores:
                 score_list.append({
                     "playerName": score.playerName,
@@ -392,15 +420,21 @@ class GameDataService:
                     "stt": score.stt
                 })
 
+            self.game_repository.send_score_list(room_id, score_list)
+            score_list_after_setting = self.game_repository.get_score_list(room_id)
+            logger.info(f"score_list_after_setting: {score_list_after_setting}")
+            return
+
         if mode == "adaptive" and round in ["1", "2"] and not is_obstacle_correct:
             self.adaptive_score(room_id, round, player_answer_list, score_list)            
 
         if mode == "auto" and not is_obstacle_correct:
             self.auto_score(player_answer_list, room_id, round, stt, is_correct, score_rules, round_4_mode, difficulty, is_take_turn_correct, stt_take_turn, stt_taken, score_list)
     
-        score_ref = db.reference(f"rooms/{room_id}/scores")
-        score_ref.set(score_list)
-        #self.game_repository.send_scores_list(room_id, score_list)
+        logger.info(f"Score list before setting scoring: {score_list}")
+        self.game_repository.send_score_list(room_id, score_list)
+        score_list_after_setting = self.game_repository.get_score_list(room_id)
+        logger.info(f"score_list_after_setting: {score_list_after_setting}")
 
         self.reset_score_list(room_id, player_answer_list)
 

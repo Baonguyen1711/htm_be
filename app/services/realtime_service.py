@@ -197,6 +197,8 @@ def close_buzz(room_id: str):
     buzz_ref.delete()
 
 def set_star(room_id: str, player_name: str):
+    logger.info(f"set star {player_name}")
+    logger.info(f"set star {room_id}")
     star_ref = db.reference(f"rooms/{room_id}/star")
     star_ref.set(player_name)
 

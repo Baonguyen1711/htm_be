@@ -56,7 +56,7 @@ def get_auth_service():
 
 @lru_cache
 def get_history_service():
-    return HistoryService(get_history_repository())
+    return HistoryService(get_history_repository(), get_game_repository())
 
 @lru_cache
 def get_room_service():

@@ -3,7 +3,7 @@ import random
 import time
 from typing import List
 import bcrypt
-from fastapi import HTTPException, logger, Depends
+from fastapi import HTTPException, Depends
 
 from ..models.users import User
 from ..repositories.firestore.room_repository import RoomRepository
@@ -98,8 +98,49 @@ class RoomService:
         self.room_repository.create_room(room_data, room_id)
 
         return room_id
-   
-    
+
+    async def get_room_info(self, room_id: str, password: str = None):
+        """Get room information including max players and current players with their positions"""
+        # Validate room password and get room data
+        room_data = self.get_room_by_id(room_id)
+        if not room_data:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        if not self.validate_room_password(room_id, password):
+            raise HTTPException(status_code=403, detail="Invalid room password")
+
+        # Get current players
+        current_players_raw = self.game_repository.get_players_in_room(room_id)
+        current_players = []
+        if current_players_raw is not None:
+            # Filter out None values and ensure we only have valid player objects
+            current_players = [player for player in current_players_raw if player is not None and isinstance(player, dict)]
+
+        # Get max players from room data
+        max_players = room_data.get("maxPlayers", 4)
+
+        # Get occupied positions
+        occupied_positions = [int(player.get("stt", 0)) for player in current_players if player.get("stt")]
+
+        # Generate available positions
+        available_positions = [i for i in range(1, max_players + 1) if i not in occupied_positions]
+
+        return {
+            "room_id": room_id,
+            "max_players": max_players,
+            "current_players_count": len(current_players),
+            "occupied_positions": occupied_positions,
+            "available_positions": available_positions,
+            "current_players": [
+                {
+                    "uid": player.get("uid"),
+                    "userName": player.get("userName"),
+                    "stt": player.get("stt"),
+                    "avatar": player.get("avatar")
+                } for player in current_players
+            ]
+        }
+
     async def join_room(self, room_id: str, uid: str, user_info: User, password: str = None):
         logger.info(f"user: {user_info}")
         logger.info(f"room_id: {room_id}")
@@ -119,53 +160,116 @@ class RoomService:
 
         # Get max players from room data (default to 4 for backward compatibility)
         max_players = room_data.get("maxPlayers", 4)
-        players = self.game_repository.get_players_in_room(room_id) or []
+        current_player_list = list(self.game_repository.get_players_in_room(room_id)) if self.game_repository.get_players_in_room(room_id) is not None else []
 
-        if len(players) >= max_players:
+        if len(current_player_list) >= max_players:
             logger.info(f"room full")
             raise HTTPException(status_code=400, detail="Room full")
 
-        self.game_repository.set_player_to_room(room_id, uid, player_info)
+        # Check if position (stt) is already taken
+        requested_position = player_info.get("stt")
+        if requested_position:
+            occupied_positions = [player.get("stt") for player in current_player_list if player.get("stt")]
+            if requested_position in occupied_positions:
+                raise HTTPException(status_code=409, detail=f"Position {requested_position} is already taken")
+
+            # Validate position is within valid range
+            try:
+                position_int = int(requested_position)
+                if position_int < 1 or position_int > max_players:
+                    raise HTTPException(status_code=400, detail=f"Position must be between 1 and {max_players}")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Position must be a valid number")
+
+        logger.info(f"current_player_list before: {current_player_list}")        
+        logger.info(f"player_info: {player_info}")
+        current_player_list.append(player_info)
+        
+        logger.info(f"current_player_list after: {current_player_list}")
+        self.game_repository.set_player_to_room(room_id, current_player_list)
         logger.info("Reference created successfully")
     
         # Get updated players list after adding the new player
         updated_players = self.game_repository.get_players_in_room(room_id)
+        logger.info(f"updated_players: {updated_players}")
 
-        for uid, player_data in updated_players.items():
-            stt = player_data["stt"]
-            player_info_object = {
-                    "uid": uid,
-                    "userName": player_data["userName"],
-                    "avatar": player_data["avatar"],
-                    "stt": player_data["stt"],
-                    "lastActive": player_data["lastActive"],
-            }
+        # for player in updated_players:
+        #     player_info_object = {
+        #             "uid": player["uid"],
+        #             "userName": player["userName"],
+        #             "avatar": player["avatar"],
+        #             "stt": player["stt"],
+        #             "lastActive": player["lastActive"],
+        #     }
 
-            player_info_object_for_answer = {
-                **player_info_object,
-                "answer": "",
-                "row": "",
-                "time": 0,
-                "score": 0,
-                "isObstacle": False,
-                "round_scores": {
-                    "1": 0,
-                    "2": 0,
-                    "3": 0,
-                    "4": 0
-                },
-                "was_deducted_this_round": False,
-                "is_correct": False
-            }
+        player_info_object_for_answer = {
+            **player_info,
+            "answer": "",
+            "row": "",
+            "time": 0,
+            "score": 0,
+            "isObstacle": False,
+            "round_scores": {
+                "1": 0,
+                "2": 0,
+                "3": 0,
+                "4": 0
+            },
+            "was_deducted_this_round": False,
+            "is_correct": False
+        }
 
-            self.game_repository.set_single_player_answer(room_id, uid, player_info_object_for_answer)
+        score_object = {
+            **player_info,
+            "score": 0,
+        }
+
+        current_score_list = list(self.game_repository.get_score_list(room_id)) if self.game_repository.get_score_list(room_id) is not None else []
+        logger.info(f"current_score_list before: {current_score_list}")
+        # Check if the user's score is already in the list to avoid duplicates
+        if not any(score["uid"] == uid for score in current_score_list):
+            current_score_list.append(score_object)
+
+        logger.info(f"current_score_list after: {current_score_list}")
+        
+        self.game_repository.send_score_list(room_id, current_score_list)
+
+        self.game_repository.set_single_player_answer(room_id, uid, player_info_object_for_answer)
             
         # players_info = get_player_info(room_id)
-        return list(updated_players)
+        return updated_players
     
-    def spectator_join_room(self, room_id: str): 
+    def spectator_join_room(self, room_id: str):
         spectator_path = self.game_repository.set_spectator_to_room(room_id)
 
         return spectator_path
+
+    async def kick_player(self, room_id: str, player_uid: str):
+        """
+        Remove a player from the room
+        """
+        logger.info(f"Kicking player {player_uid} from room {room_id}")
+
+        # Get current players list
+        current_players = self.game_repository.get_players_in_room(room_id)
+        if not current_players:
+            raise ValueError("No players found in room")
+
+        # Convert to list if it's not already
+        players_list = list(current_players) if current_players else []
+
+        # Find and remove the player
+        updated_players = [player for player in players_list if player.get("uid") != player_uid]
+
+        if len(updated_players) == len(players_list):
+            raise ValueError(f"Player {player_uid} not found in room")
+
+        # Update the players list in Firebase
+        self.game_repository.set_player_to_room(room_id, updated_players)
+
+        logger.info(f"Player {player_uid} successfully kicked from room {room_id}")
+        logger.info(f"Updated players count: {len(updated_players)}")
+
+        return updated_players
 
         

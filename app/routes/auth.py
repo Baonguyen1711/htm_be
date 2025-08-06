@@ -11,8 +11,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 auth_routers = APIRouter()
 
-ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes 
-REFRESH_TOKEN_EXPIRE_SECONDS = 4* 60 * 60  # 7 days
+ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes
+REFRESH_TOKEN_EXPIRE_SECONDS = 7 * 24 * 60 * 60  # 7 days (was incorrectly 4 hours)
 
 class AuthRouter:
     def __init__(self, auth_service: AuthService = None):
@@ -74,8 +74,8 @@ class AuthRouter:
             key="authToken",
             value=api_token,
             httponly=True,
-            secure=True,
             samesite="None",
+            secure=True,
             max_age=60*60*6  # 7 days 
         )
 
@@ -99,7 +99,6 @@ class AuthRouter:
                 key="authToken",
                 value="",
                 httponly=True,
-                secure=True,
                 samesite="None",
                 max_age=0  # Expire immediately
             )

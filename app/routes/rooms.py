@@ -20,12 +20,14 @@ class RoomRouter:
         self.room_service = room_service or get_room_service()
         self.router = APIRouter(prefix="/api/room")
 
-        self.router.get("")(self.get_rooms_by_user_id)
+        self.router.get("/user")(self.get_rooms_by_user_id)
 
         self.router.post("/validate")(self.validate_room)
+        self.router.get("/info")(self.get_room_info)
         self.router.post("/join")(self.join_room)
         self.router.post("/create")(self.create_new_room)
         self.router.post("/spectator/join")(self.spectator_join_room)
+        self.router.post("/kick")(self.kick_player)
 
 
     @handle_exceptions
@@ -34,15 +36,23 @@ class RoomRouter:
         return {"message": "Room validation successful"}
 
     @handle_exceptions
+    async def get_room_info(self, room_id: str, password: str = None, request: Request = None):
+        # This endpoint doesn't require authentication, just room validation
+        room_info = await self.room_service.get_room_info(room_id, password)
+        return room_info
+
+    @handle_exceptions
     async def join_room(self, room_id: str, request: Request, user_info: User, password: str = None):
         user = request.state.user
         authenticated_uid = user["uid"]
         updated_players = await self.room_service.join_room(room_id, authenticated_uid, user_info, password)
+        logger.info(f"updated_players {updated_players}")
+        logger.info(f"list updated_players {list( updated_players)}")
 
         return {
             "message": f"User {authenticated_uid} joined room {room_id}",
-            "userId": {authenticated_uid},
-            "players": updated_players
+            "uid": {authenticated_uid},
+            "players":  updated_players
         }
         
     @handle_exceptions
@@ -77,9 +87,33 @@ class RoomRouter:
 
         
     @handle_exceptions
-    def spectator_join_room(self, room_id: str): 
+    def spectator_join_room(self, room_id: str):
         spectator_path = self.room_service.spectator_join_room(room_id)
+        logger.info(f"spectator_path {spectator_path}")
         return { "spectator_path": spectator_path}
+
+    @handle_exceptions
+    async def kick_player(self, room_id: str, player_uid: str, request: Request):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        # Verify that the requester is the host/owner of the room
+        room_data = self.room_service.get_room_by_id(room_id)
+        if not room_data:
+            raise ValueError("Room not found")
+
+        if room_data.get("ownerId") != authenticated_uid:
+            raise ValueError("Only the room owner can kick players")
+
+        # Remove player from room
+        result = await self.room_service.kick_player(room_id, player_uid)
+        logger.info(f"Player {player_uid} kicked from room {room_id} by {authenticated_uid}")
+
+        return {
+            "message": f"Player {player_uid} has been kicked from room {room_id}",
+            "kicked_player": player_uid,
+            "updated_players": result
+        }
 
 
     

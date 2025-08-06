@@ -16,8 +16,8 @@ class GameSignalService:
     def set_next_round(self, room_id: str, round_number: str) -> None:
         self.game_repository.set_next_round(room_id, round_number)
 
-    def set_round_start(self, room_id: str, round_number: str, grid: Optional[List[List[str]]] = None) -> None:
-        self.game_repository.set_round_start(room_id, round_number, grid)
+    def set_round_start(self, room_id: str, round_number: str) -> None:
+        self.game_repository.set_round_start(room_id, round_number)
 
     def set_return_to_topic_selection(self, room_id: str, should_return: bool) -> None:
         self.game_repository.set_return_to_topic_selection(room_id, should_return)
@@ -37,6 +37,9 @@ class GameSignalService:
     def reset_buzz(self,room_id: str):
         self.game_repository.reset_buzz(room_id)
 
+    def reset_star(self,room_id: str):
+        self.game_repository.reset_star(room_id)
+
     def open_buzz(self, room_id: str):
         self.game_repository.open_buzz(room_id)
 
@@ -52,7 +55,12 @@ class GameSignalService:
     def hide_rules(self, room_id: str):
         self.game_repository.hide_rules(room_id)
 
-    
-    
-    
+    def set_player_color(self, room_id: str, player_stt: str, color: str):
+        logger.info(f"set_player_color {color}")
+        logger.info(f"set_player_color {room_id}")
+        self.game_repository.set_player_color(room_id, player_stt, color)
+
+    def remove_player_color(self, room_id: str, player_stt: str):
+        """Remove color for a specific player in Round 4"""
+        self.game_repository.remove_player_color(room_id, player_stt)
     

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException, File, UploadFile, Depends
 from fastapi import FastAPI, UploadFile
 from starlette.requests import Request
 
@@ -27,18 +27,18 @@ class TestRouter:
 
         #GET
         self.router.get("/user")(self.get_test_name_by_user_id)
-        self.router.get("/{test_name}")(self.get_test)
 
         #POST
         self.router.post("/upload")(self.process_file)
 
         #DELETE
-        self.router.put("/update/{question_id}")(self.update_question_document)
+        self.router.put("/question/update")(self.update_question_document)
         
+        self.router.get("/")(self.get_test)
 
 
     @handle_exceptions
-    def update_question_document(self, question_id, request: UpdateQuestionRequest):
+    def update_question_document(self, question_id: str, request: UpdateQuestionRequest):
         logger.info("Updating question")
         updated_data = jsonable_encoder(request)
         result = self.test_service.update_question(question_id, updated_data)
@@ -65,14 +65,31 @@ class TestRouter:
         return test_list
 
     @handle_exceptions
-    async def process_file(self, test_name: str , request: Request, file: UploadFile = File(...)):
+    async def process_file(self, test_name: str, request: Request, file: UploadFile = File(...)):
+
+        logger.info(f"Received upload request - test_name: {test_name}")
+        logger.info(f"File info: filename={file.filename}, content_type={file.content_type}, size={file.size if hasattr(file, 'size') else 'unknown'}")
 
         user = request.state.user
         authenticated_uid = user["uid"]
 
         logger.info(f"authenticated_uid: {authenticated_uid}")
+        logger.info(f"Processing file: {file.filename} for test: {test_name}")
 
-        self.test_service.process_test_file(test_name, authenticated_uid, file)
+        result = await self.test_service.process_test_file(test_name, authenticated_uid, file)
+
+        logger.info(f"File processing completed successfully for test: {test_name}")
+        logger.info(f"Service result: {result}")
+
+        response_data = {
+            "message": f"Test '{test_name}' uploaded successfully",
+            "test_name": test_name,
+            "filename": file.filename,
+            "result": result
+        }
+
+        logger.info(f"Returning response: {response_data}")
+        return response_data
 
 
 
