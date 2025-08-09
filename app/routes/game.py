@@ -12,6 +12,7 @@ from ..services.gameService.game_data_service import GameDataService
 from ..services.gameService.game_signal_service import GameSignalService
 from ..services.test_service import TestService
 from ..helper.exception import handle_exceptions
+from ..helper.host_only import host_only
 from ..dependencies.router_dependencies import get_game_data_service, get_game_signal_service, get_test_service
 
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class GameRouter:
     def __init__(self, game_data_service: GameDataService = None, game_signal_service: GameSignalService = None, test_service: TestService = None):
-        # FIXED: Accept actual service instances, not Depends() objects
+
         self.game_data_service = game_data_service or get_game_data_service()
         self.game_signal_service = game_signal_service or get_game_signal_service()
         self.test_service = test_service or get_test_service()
@@ -42,7 +43,6 @@ class GameRouter:
         self.router.post("/answer")(self.send_answer)
         self.router.post("/round/start")(self.send_start_round_signal)
         self.router.post("/time")(self.send_start_time_signal)
-        self.router.post("/submit")(self.submit_answer)
         self.router.post("/turn")(self.update_turn)
         self.router.post("/player/color")(self.set_player_color)
         self.router.post("/score/rules")(self.apply_score_rule)
@@ -51,22 +51,29 @@ class GameRouter:
         self.router.post("/rules/hide")(self.hide_room_rules)
         self.router.post("/rules/show")(self.show_room_rules)
 
+        #for player
+        self.router.post("/submit")(self.submit_answer)
+
     
     @handle_exceptions
-    def set_selected_cell(self,room_id: str,row_index:str, col_index:str):
+    @host_only
+    def set_selected_cell(self, request: Request,room_id: str,row_index:str, col_index:str):
         self.game_data_service.send_selected_cell(room_id,row_index, col_index)
 
 
     @handle_exceptions
-    def set_cell_color(self, room_id: str,row_index:str, col_index:str,color: str):
+    @host_only
+    def set_cell_color(self, request: Request, room_id: str,row_index:str, col_index:str,color: str):
         self.game_data_service.send_cell_color(room_id,row_index,col_index,color)
 
     @handle_exceptions
-    def send_grid_to_player(self, room_id: str, grid: Grid):
+    @host_only
+    def send_grid_to_player(self, request: Request, room_id: str, grid: Grid):
         self.game_data_service.send_grid(room_id, grid.grid)
 
     @handle_exceptions
-    def set_row_action(self, room_id: str, row_number: str, action:str, word_length: int,selected_row_index: int, selected_col_index: int, correct_answer: Optional[str] = None ,marked_characters_index: Optional[str] = None, is_row:Optional[bool] = None):
+    @host_only
+    def set_row_action(self, request: Request, room_id: str, row_number: str, action:str, word_length: int,selected_row_index: int, selected_col_index: int, correct_answer: Optional[str] = None ,marked_characters_index: Optional[str] = None, is_row:Optional[bool] = None):
         if action == "SELECT":
             logger.info("Attempting to send selected row")
             self.game_data_service.send_selected_row(room_id, row_number,is_row, word_length,selected_row_index, selected_col_index)
@@ -80,27 +87,32 @@ class GameRouter:
        
         
     @handle_exceptions
-    async def open_obstacle(self, room_id: str, grid: Grid):
+    @host_only
+    async def open_obstacle(self, request: Request, room_id: str, grid: Grid):
 
         self.game_data_service.send_obstacle(room_id, grid)
         logger.info("obstacle opened")
 
 
-    @handle_exceptions    
-    def set_selected_packet_name(self, packet_name: str,room_id:str,request: Request):
+    @handle_exceptions
+    @host_only    
+    def set_selected_packet_name(self, request: Request, packet_name: str,room_id:str):
         self.game_data_service.send_selected_packet_name_to_player(packet_name,room_id)
 
-    @handle_exceptions    
-    def set_used_packet_name(self, room_id:str,used_packets: List[str] = Body(...)):
+    @handle_exceptions
+    @host_only    
+    def set_used_packet_name(self, request: Request, room_id:str,used_packets: List[str] = Body(...)):
         self.game_data_service.send_used_packet_name_to_player(used_packets,room_id)
 
-    @handle_exceptions    
-    def set_return_to_packet_selection(self, should_return: bool,room_id:str,request: Request):
+    @handle_exceptions
+    @host_only    
+    def set_return_to_packet_selection(self, request: Request, should_return: bool,room_id:str):
         self.game_data_service.send_should_return_to_packet_selection(should_return,room_id)
 
 
     @handle_exceptions
-    def get_packets_name(self, test_name:str ,room_id:str,request: Request):
+    @host_only
+    def get_packets_name(self, request: Request, test_name:str ,room_id:str):
 
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -112,7 +124,8 @@ class GameRouter:
         return packets
                 
     @handle_exceptions
-    def get_each_round_questions(self, test_name:str, round: str,request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None):
+    @host_only
+    def get_each_round_questions(self, request: Request, test_name:str, round: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None):
 
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -124,7 +137,8 @@ class GameRouter:
         return questions
 
     @handle_exceptions
-    def prefetch_question(self, test_name:str, round: str, request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None):
+    @host_only
+    def prefetch_question(self, request: Request, test_name:str, round: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None):
 
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -140,13 +154,14 @@ class GameRouter:
             "prefetch": True
         }
     
-    def send_packets_name(self, room_id: str, test_name: str):
+    def send_packets_name(self, request: Request, room_id: str, test_name: str):
         self.game_data_service.send_packet_name_to_player
 
 
 
     @handle_exceptions
-    def send_specific_question(self, test_name:str, round: str, room_id: str,request: Request, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
+    @host_only
+    def send_specific_question(self, request: Request, test_name:str, round: str, room_id: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
         user = request.state.user
         authenticated_uid = user["uid"]
         test_data = self.test_service.process_test_data(authenticated_uid, test_name)
@@ -157,38 +172,43 @@ class GameRouter:
         self.game_data_service.send_question_to_player(room_id,question_without_answer)
         return question
 
-    @handle_exceptions                    
-    def send_answer(self, room_id: str):
+    @handle_exceptions
+    @host_only                    
+    def send_answer(self, request: Request, room_id: str):
         logger.info("Attempting to send answer to player")
         self.game_data_service.send_answer_to_player(room_id)
         logger.info("answer sent!")
 
 
     @handle_exceptions
-    def send_start_time_signal(self, room_id: str):
+    @host_only
+    def send_start_time_signal(self, request: Request, room_id: str):
         logger.info("Attempting to start time")
         self.game_signal_service.set_start_time(room_id)
         logger.info("time started")
     
     @handle_exceptions
-    def send_start_round_signal(self, room_id: str, round: str) -> None:
+    @host_only
+    def send_start_round_signal(self, request: Request, room_id: str, round: str) -> None:
         self.game_signal_service.set_round_start(room_id, round)
     
     @handle_exceptions
-    def submit_answer(self, room_id: str, answer: Answer,request: Request):
+    def submit_answer(self, request: Request, room_id: str, answer: Answer):
         user = request.state.user
         authenticated_uid = user["uid"]
         self.game_data_service.submit_answer(room_id, authenticated_uid, answer)
         
     
     @handle_exceptions
-    def apply_score_rule(self,room_id: str, score_rules: ScoreRule):
+    @host_only
+    def apply_score_rule(self, request: Request,room_id: str, score_rules: ScoreRule):
         self.game_data_service.set_score_rules(room_id, score_rules)
         
     
     @handle_exceptions
+    @host_only
     def scoring(
-            self,
+            self, request: Request,
             room_id: str, 
             mode: str,
             round: Optional[str] = None, 
@@ -221,19 +241,22 @@ class GameRouter:
         
     
     @handle_exceptions
-    def broadcast_answer(self,room_id: str):
+    @host_only
+    def broadcast_answer(self, request: Request,room_id: str):
         player_answer = self.game_data_service.get_all_player_answer(room_id)
         logger.info(f"player_answer {player_answer}")
         self.game_data_service.broadcast_player_answer(room_id,list(player_answer.values()))    
         return list(player_answer.values())
     
     @handle_exceptions
-    def update_turn(self, turn: int, room_id: str):
+    @host_only
+    def update_turn(self, request: Request, turn: int, room_id: str):
         self.game_signal_service.send_currrent_turn_to_player(turn,room_id)
         return {"message": "set current turn sucessfully", "stt": turn}
 
     @handle_exceptions
-    def set_player_color(self, room_id: str, player_stt: str, request_body: dict = Body(...)):
+    @host_only
+    def set_player_color(self, request: Request, room_id: str, player_stt: str, request_body: dict = Body(...)):
         """Set color for a specific player in Round 4"""
         color = request_body.get("color", "")
         logger.info(f"set_player_color {color}")
@@ -246,13 +269,15 @@ class GameRouter:
             return {"data": {"success": True}, "message": f"Color removed for player {player_stt}"}
       
     @handle_exceptions
-    def show_room_rules(self, room_id: str, round_number: str):
+    @host_only
+    def show_room_rules(self, request: Request, room_id: str, round_number: str):
         self.game_signal_service.show_rules(room_id, round_number)
         return {"message": "Rules shown successfully", "room_id": room_id, "round": round_number}
 
 
     @handle_exceptions
-    def hide_room_rules(self, room_id: str):
+    @host_only
+    def hide_room_rules(self, request: Request, room_id: str):
         self.game_signal_service.hide_rules(room_id)
         return {"message": "Rules hidden successfully", "room_id": room_id}
 

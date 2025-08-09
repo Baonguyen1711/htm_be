@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, File, UploadFile, Depends
 from fastapi import FastAPI, UploadFile
 from starlette.requests import Request
 
-from ..models.questions import UpdateQuestionRequest, Answer, Grid, PlacementArray
+from ..models.questions import UpdateQuestionBody, Answer, Grid, PlacementArray
 from ..models.scores import Score, ScoreRule
 from fastapi.encoders import jsonable_encoder
 import logging
@@ -11,6 +11,7 @@ from app.stores.player_store import get_player_info
 from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question, upload_single_question_to_firestore
 from ..services.test_service import TestService
 from ..helper.exception import handle_exceptions
+from ..helper.host_only import host_only
 # FIXED: Move import outside of class to fix circular import
 from ..dependencies.router_dependencies import get_test_service
 
@@ -38,15 +39,17 @@ class TestRouter:
 
 
     @handle_exceptions
-    def update_question_document(self, question_id: str, request: UpdateQuestionRequest):
+    @host_only
+    def update_question_document(self, request: Request, question_id: str, body: UpdateQuestionBody):
         logger.info("Updating question")
-        updated_data = jsonable_encoder(request)
+        updated_data = jsonable_encoder(body)
         result = self.test_service.update_question(question_id, updated_data)
        
         return result
                 
 
     @handle_exceptions
+    @host_only
     def get_test_name_by_user_id(self, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -57,6 +60,7 @@ class TestRouter:
 
 
     @handle_exceptions
+    @host_only
     def get_test(self, test_name: str, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -65,6 +69,7 @@ class TestRouter:
         return test_list
 
     @handle_exceptions
+    @host_only
     async def process_file(self, test_name: str, request: Request, file: UploadFile = File(...)):
 
         logger.info(f"Received upload request - test_name: {test_name}")

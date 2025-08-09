@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from app.models.buzz import BuzzRequest
 from ..helper.exception import handle_exceptions
+from ..helper.host_only import host_only
 import logging
 import traceback
 from ..services.realtime_service import set_star
@@ -16,7 +17,7 @@ class StarRouter:
         self.router = APIRouter(prefix="/api/star")
 
         self.router.post("/")(self.set_player_star)
-        self.router.post("/reset")(self.reset_buzz)
+        self.router.post("/reset")(self.reset_star)
 
     @handle_exceptions
     async def set_player_star(self, room_id: str, request: BuzzRequest):
@@ -26,6 +27,7 @@ class StarRouter:
             return {"error": str(e)}
 
     @handle_exceptions
-    async def reset_buzz(self,room_id:str):
+    @host_only
+    async def reset_star(self,request: Request, room_id:str):
         self.game_signal_service.reset_star(room_id)
         return {"status": "reset", "message": "Buzz has been reset"} 

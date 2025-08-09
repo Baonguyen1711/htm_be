@@ -2,7 +2,7 @@ from decimal import Decimal
 from pydantic import BaseModel
 from typing import List
 
-class UpdateQuestionRequest(BaseModel):
+class UpdateQuestionBody(BaseModel):
     class Config:
         extra = "allow"  # Allow extra fields not defined in the model
 

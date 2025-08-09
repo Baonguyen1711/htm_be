@@ -1,12 +1,12 @@
 from fastapi import APIRouter
 from starlette.requests import Request
-from ..models.questions import UpdateQuestionRequest, Grid
+from ..models.questions import  Grid
 from ..models.users import User
 import logging
 import traceback
-from app.services.realtime_service import set_next_round, spectator_join, set_player_answer, send_currrent_turn_to_player, show_rules, hide_rules
 from ..services.room_service import RoomService
 from ..helper.exception import handle_exceptions
+from ..helper.host_only import host_only
 from ..dependencies.router_dependencies import get_room_service
 
 logging.basicConfig(level=logging.INFO)
@@ -56,7 +56,8 @@ class RoomRouter:
         }
         
     @handle_exceptions
-    def create_new_room(self, expired_time: int, request: Request, password: str = None, max_players: int = 4):
+    @host_only
+    def create_new_room(self, request: Request, expired_time: int, password: str = None, max_players: int = 4):
         user = request.state.user
         authenticated_uid = user["uid"]
         room_id = self.room_service.create_room(authenticated_uid, expired_time, password, max_players)
@@ -78,6 +79,7 @@ class RoomRouter:
     #         raise HTTPException(status_code=500, detail=f"Error deactivating room: {str(e)}")        
 
     @handle_exceptions
+    @host_only
     async def get_rooms_by_user_id(self, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]         
@@ -93,6 +95,7 @@ class RoomRouter:
         return { "spectator_path": spectator_path}
 
     @handle_exceptions
+    @host_only
     async def kick_player(self, room_id: str, player_uid: str, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]

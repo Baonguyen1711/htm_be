@@ -3,6 +3,7 @@ from starlette.requests import Request
 from ..models.history import History
 from ..services.history_service import HistoryService
 from ..helper.exception import handle_exceptions
+from ..helper.host_only import host_only
 from ..dependencies.router_dependencies import get_history_service
 import logging
 
@@ -20,12 +21,14 @@ class HistoryRouter:
         self.router.get("/retrieve")(self.get_history_by_user)
 
     @handle_exceptions
-    def update_match_history(self, room_id:str, request: Request):
+    @host_only
+    def update_match_history(self, request: Request,room_id:str):
         user = request.state.user
         authenticated_uid = user["uid"]
         self.history_service.update_match_history(room_id, authenticated_uid)
 
     @handle_exceptions
+    @host_only
     def get_history_by_user(self, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]
