@@ -70,13 +70,17 @@ class AuthRouter:
     async def authenticate(self, request: Request, response: Response):
         api_token, decoded_token = await self.auth_service.authenticate(request)
 
+        # Check if authentication failed
+        if api_token is None:
+            return {"error": "Authentication failed", "details": decoded_token}
+
         response.set_cookie(
             key="authToken",
             value=api_token,
             httponly=True,
             samesite="None",
             secure=True,
-            max_age=60*60*6  # 7 days 
+            max_age=60*60*6  # 7 days
         )
 
         return {"message": "Authenticated", "user": decoded_token}

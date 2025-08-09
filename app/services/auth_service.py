@@ -5,7 +5,7 @@ from ..repositories.firestore.room_repository import RoomRepository
 from ..repositories.firestore.user_repository import UserRepository
 # FIXED: Import from service_dependencies instead of router_dependencies to break circular import
 from ..dependencies.service_dependencies import get_room_repository, get_user_repository
-import jwt
+import jwt as pyjwt
 import time
 import os
 import logging
@@ -39,7 +39,7 @@ class AuthService:
             "userId": user_id or "anon_" + str(int(time.time() * 1000)),
             "exp": time.time() + ACCESS_TOKEN_EXPIRE_SECONDS  # Use consistent expiration time
         }
-        token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+        token = pyjwt.encode(payload, SECRET_KEY, algorithm="HS256")
         return token
     
 
@@ -88,7 +88,7 @@ class AuthService:
             "userId": user_id,
             "exp": access_exp_time
         }
-        access_token = jwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
+        access_token = pyjwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
 
         refresh_payload = {
             "userId": user_id,
@@ -96,7 +96,7 @@ class AuthService:
             "role": role,
             "exp": refresh_exp_time
         }
-        refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
+        refresh_token = pyjwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
 
         # Log token expiration times for debugging
         logger.info(f"Generated tokens for user {user_id} (role: {role}) in room {room_id}")
@@ -120,11 +120,11 @@ class AuthService:
         token = auth_header[len("Bearer "):]
         logger.info(f"token {token}")
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            payload = pyjwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             return payload
-        except jwt.ExpiredSignatureError:
+        except pyjwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token expired")
-        except jwt.InvalidTokenError:
+        except pyjwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
     
 
@@ -136,7 +136,7 @@ class AuthService:
             raise HTTPException(status_code=401, detail="Missing refresh token")
 
         try:
-            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
+            payload = pyjwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("userId")
             room_id = payload.get("roomId")
             role = payload.get("role")
@@ -148,13 +148,13 @@ class AuthService:
                 "exp": time.time() + ACCESS_TOKEN_EXPIRE_SECONDS
             }
 
-            access_token = jwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
+            access_token = pyjwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
 
             return access_token
 
-        except jwt.ExpiredSignatureError:
+        except pyjwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Refresh token expired")
-        except jwt.InvalidTokenError:
+        except pyjwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
     
     async def verify_is_host(self, uid):
@@ -193,7 +193,7 @@ class AuthService:
 
             logger.info(f"JWT payload: {api_token_payload}")
 
-            api_token = jwt.encode(api_token_payload, SECRET_KEY, algorithm="HS256")
+            api_token = pyjwt.encode(api_token_payload, SECRET_KEY, algorithm="HS256")
             logger.info(f"JWT token created successfully, length: {len(api_token)}")
 
             # Ensure token is string (newer PyJWT versions return string, older return bytes)
@@ -203,4 +203,4 @@ class AuthService:
             return api_token, decoded_token
         except Exception as e:
             logger.error(f"Authentication error: {str(e)}")
-            return {"error": str(e)}
+            return None, {"error": str(e)}
