@@ -220,7 +220,8 @@ class RoomService:
         }
 
         score_object = {
-            **player_info,
+            **{k: v for k, v in player_info.items() if k != "userName"},
+            "playerName": player_info.get("userName"),
             "score": 0,
         }
 
