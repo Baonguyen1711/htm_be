@@ -295,6 +295,9 @@ class GameDataService:
                 elif is_take_turn_correct == "true":
                     taker = next((p for p in player_answer if p["stt"] == stt_take_turn), None)
                     taken = next((p for p in player_answer if p["stt"] == stt_taken), None)
+                    logger.info(f"taker {taker}")
+                    logger.info(f"taken {taken}")
+
 
                     if taker and taken:
                         if not taken.get("was_deducted_this_round"):                
@@ -302,10 +305,11 @@ class GameDataService:
                             taken["score"] = max(0, taken["score"] - deducted)
                             taken["round_scores"][int(round)] -= deducted
                             self.set_single_player_answer(room_id, taken["uid"], taken)
-                            taker["score"] += points
-                            taker["round_scores"][int(round)] +=points
-                            self.set_single_player_answer(room_id, taker["uid"], taker)
-                            logger.info(f"[Round4-TakeTurn-True] {taker['uid']} +{points}, {taken['uid']} -{deducted}")
+                            logger.info(f"[Round4-TakeTurn-True] {taken['uid']} -{deducted}")
+                        taker["score"] += points
+                        taker["round_scores"][int(round)] +=points
+                        self.set_single_player_answer(room_id, taker["uid"], taker)
+                        logger.info(f"[Round4-TakeTurn-True] {taker['uid']} +{points}")
 
             else:
                 raise HTTPException(status_code=400, detail="Invalid round_4_mode")
@@ -419,6 +423,13 @@ class GameDataService:
                     "isModified": score.isModified,
                     "stt": score.stt
                 })
+
+                for player in player_answer_list:
+                    if player["stt"] == score.stt:
+                        player["score"] = score.score
+                        player["round_scores"][int(round)] = score.score
+                        player["is_correct"] = score.isCorrect
+                        self.set_single_player_answer(room_id, player["uid"], player)
 
             self.game_repository.send_score_list(room_id, score_list)
             score_list_after_setting = self.game_repository.get_score_list(room_id)
