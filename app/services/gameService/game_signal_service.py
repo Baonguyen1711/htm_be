@@ -55,6 +55,12 @@ class GameSignalService:
     def hide_rules(self, room_id: str):
         self.game_repository.hide_rules(room_id)
 
+    def play_media(self, room_id: str):
+        self.game_repository.play_media(room_id)
+
+    def stop_media(self, room_id: str):
+        self.game_repository.stop_media(room_id)
+
     def set_player_color(self, room_id: str, player_stt: str, color: str):
         logger.info(f"set_player_color {color}")
         logger.info(f"set_player_color {room_id}")

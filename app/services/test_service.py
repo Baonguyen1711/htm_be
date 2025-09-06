@@ -276,8 +276,10 @@ class TestService:
     def get_question_without_answer(self,question, room_id):
         if isinstance(question, dict):
             current_correct_answer = question.get("answer")
+            logger.info(f"current_correct_answer {current_correct_answer}")
             if current_correct_answer is not None:
                 current_correct_answer = str(current_correct_answer).split("~/")
+                logger.info(f"current_correct_answer after split {current_correct_answer}")
 
             self.realtime_question_repository.set_current_correct_answer(room_id, current_correct_answer)
             question_without_answer =  {key: value for key, value in question.items() if key != "answer"}

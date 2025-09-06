@@ -224,7 +224,8 @@ class GameDataService:
                 "score": player["score"],
                 "isCorrect": player["is_correct"],  # Send as boolean
                 "isModified": player["is_correct"] if round != "3" else False, 
-                "stt": player["stt"]
+                "stt": player["stt"],
+                "uid": player["uid"]
             })
 
     def auto_score(self, player_answer, room_id: str, round: str, stt: str,is_correct: bool, score_rules: Any, round_4_mode: str, difficulty: str, is_take_turn_correct: bool, stt_take_turn: str, stt_taken: str, score_list: List ):
@@ -346,7 +347,8 @@ class GameDataService:
                 "score": player["score"],
                 "isCorrect": player["is_correct"],  # Send as boolean
                 "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
-                "stt": player["stt"]
+                "stt": player["stt"],
+                "uid": player["uid"]
             })
 
     def reset_score_list(self, room_id: str, player_answer):
@@ -367,7 +369,8 @@ class GameDataService:
                 "score": player["score"],
                 "isCorrect": False,  # Reset to false (boolean)
                 "isModified": False,  # No flashing during round transition (boolean)
-                "stt": player["stt"]
+                "stt": player["stt"],
+                "uid": player["uid"]
             })
         self.game_repository.send_score_list(room_id, score_list)
 
@@ -421,7 +424,8 @@ class GameDataService:
                     "score": score.score,
                     "isCorrect": score.isCorrect,
                     "isModified": score.isModified,
-                    "stt": score.stt
+                    "stt": score.stt,
+                    "uid": score.uid
                 })
 
                 for player in player_answer_list:

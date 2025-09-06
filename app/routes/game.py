@@ -50,6 +50,8 @@ class GameRouter:
         self.router.post("/broadcast")(self.broadcast_answer)
         self.router.post("/rules/hide")(self.hide_room_rules)
         self.router.post("/rules/show")(self.show_room_rules)
+        self.router.post("/media/start")(self.play_media)
+        self.router.post("/media/stop")(self.stop_media)
 
         #for player
         self.router.post("/submit")(self.submit_answer)
@@ -223,7 +225,7 @@ class GameRouter:
             stt_taken: Optional[str] = None,
             scores: Optional[List[Score]] = Body(...), 
         ):
-        self.game_data_service.score(
+        score_list = self.game_data_service.score(
             room_id, 
             mode,
             scores, 
@@ -238,6 +240,8 @@ class GameRouter:
             stt_take_turn,
             stt_taken
         )
+
+        return score_list
         
     
     @handle_exceptions
@@ -280,5 +284,17 @@ class GameRouter:
     def hide_room_rules(self, request: Request, room_id: str):
         self.game_signal_service.hide_rules(room_id)
         return {"message": "Rules hidden successfully", "room_id": room_id}
+    
+    @handle_exceptions
+    @host_only
+    def play_media(self, request: Request,room_id: str):
+        self.game_signal_service.play_media(room_id)
+
+    @handle_exceptions
+    @host_only
+    def stop_media(self, request: Request, room_id: str):
+        self.game_signal_service.stop_media(room_id)
+
+
 
       

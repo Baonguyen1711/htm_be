@@ -2,6 +2,7 @@ import datetime
 import json
 from typing import Any, Dict, List, Optional
 import logging
+from google.cloud import firestore
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,17 @@ class GameRepository(RealTimeBaseRepository):
     def update_score_each_round(self,room_id: str, data: Dict[str, Any], round: str) -> None:
         logger.info(f"Setting round scores data for room {room_id}, round {round}: {data}")
         self.set_to_path(f"{room_id}/round_scores/{round}", data)
+
+    def play_media(self, room_id: str,) -> None:
+        self.set_to_path(f"{room_id}/media", {
+            "action": "play",
+            "timeToPlay": int(datetime.datetime.now(tz=datetime.UTC).timestamp()*1000+1000),
+        })
+
+    def stop_media(self, room_id: str,) -> None:
+        self.set_to_path(f"{room_id}/media", {
+            "action": "stop",
+        })
 
 
     #Buzz repo
