@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, HTTPException, File, UploadFile, Depends
 from fastapi import FastAPI, UploadFile
 from starlette.requests import Request
@@ -28,9 +29,13 @@ class TestRouter:
 
         #GET
         self.router.get("/user")(self.get_test_name_by_user_id)
+        self.router.get("/question/random")(self.create_random_question_from_database)
 
         #POST
         self.router.post("/upload")(self.process_file)
+        self.router.post("/multiplayer/upload")(self.process_file_for_multiplayer)
+        self.router.post("/question/public")(self.public_question)
+        self.router.post("/question/private")(self.private_question)
 
         #DELETE
         self.router.put("/question/update")(self.update_question_document)
@@ -60,7 +65,6 @@ class TestRouter:
 
 
     @handle_exceptions
-    @host_only
     def get_test(self, test_name: str, request: Request):
         user = request.state.user
         authenticated_uid = user["uid"]
@@ -95,8 +99,74 @@ class TestRouter:
 
         logger.info(f"Returning response: {response_data}")
         return response_data
+    
+    @handle_exceptions
+    @host_only
+    async def process_file_for_multiplayer(self, test_name: str, request: Request, is_public: bool, file: UploadFile = File(...)):
 
+        logger.info(f"Received upload request - test_name: {test_name}")
+        logger.info(f"File info: filename={file.filename}, content_type={file.content_type}, size={file.size if hasattr(file, 'size') else 'unknown'}")
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        logger.info(f"authenticated_uid: {authenticated_uid}")
+        result = await self.test_service.process_test_file_for_multiplayer(test_name, authenticated_uid, file, is_public)
 
+        logger.info(f"File processing completed successfully for test: {test_name}")
+        logger.info(f"Service result: {result}")
+
+        response_data = {
+            "message": f"Test '{test_name}' uploaded successfully",
+            "test_name": test_name,
+            "filename": file.filename,
+            "result": result
+        }
+
+        logger.info(f"Returning response: {response_data}")
+        return response_data
+    
+    
+
+    @handle_exceptions
+    def create_random_question_from_database(self, limit: int, request: Request, catergory: Optional[str] = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        result = self.test_service.get_random_question_from_database(limit, authenticated_uid, catergory)
+        
+        logger.info(f"getting random question {result}")
+
+        return result
+    
+    @handle_exceptions
+    @host_only
+    def public_question(self, request: Request, question_id: str):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        ownership = self.test_service.check_test_ownership(question_id, authenticated_uid)
+        if not ownership:
+            raise HTTPException(status_code=403, detail="You do not have permission to public this question")
+        
+        result = self.test_service.public_question(question_id, authenticated_uid)
+
+        logger.info(f"public question {result}")
+
+        return result
+
+    @handle_exceptions
+    @host_only
+    def private_question(self, request: Request, question_id: str):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        result = self.test_service.private_question(question_id, authenticated_uid)
+
+        logger.info(f"private question {result}")
+
+        return result
+
+        logger.info(f"public question {result}")
+
+        return result
 
     # @handle_exceptions
     # async def add_new_question_to_test(question: UpdateQuestionRequest):

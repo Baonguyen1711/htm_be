@@ -56,6 +56,15 @@ class GameRouter:
         #for player
         self.router.post("/submit")(self.submit_answer)
 
+        #multiplayer mode
+        self.router.post("/multiplayer/submit")(self.submit_multiplayer_answer)
+        self.router.post("/multiplayer/invite/accept")(self.join_group_invite)
+        self.router.post("/multiplayer/invite")(self.send_group_invite)
+
+        self.router.post("/multiplayer/start")(self.send_start_multiplayer_game_signal)
+        self.router.post("/multiplayer/pause")(self.pause_multiplayer_game)
+        self.router.post("/multiplayer/end")(self.end_multiplayer_game)
+
     
     @handle_exceptions
     @host_only
@@ -166,12 +175,10 @@ class GameRouter:
     def send_specific_question(self, request: Request, test_name:str, round: str, room_id: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
         user = request.state.user
         authenticated_uid = user["uid"]
-        test_data = self.test_service.process_test_data(authenticated_uid, test_name)
-        logger.info(f"test_data {test_data}")
-        self.game_data_service.reset_player_answer(room_id)
-        question = self.test_service.get_specific_question(test_data,round,packet_name, difficulty, question_number=question_number, page=page, limit=limit)
-        question_without_answer = self.test_service.get_question_without_answer(question, room_id)
-        self.game_data_service.send_question_to_player(room_id,question_without_answer)
+        logger.info(f"Requesting question for room {room_id}, round {round}, packet {packet_name}, difficulty {difficulty}, question_number {question_number}, page {page}, limit {limit}")
+        #self.game_data_service.reset_player_answer(room_id)
+        question = self.game_data_service.send_specific_question_to_player(authenticated_uid, test_name, room_id, round, packet_name, difficulty, question_number, page, limit)
+        logger.info(f"Question sent to room {room_id}: {question}")
         return question
 
     @handle_exceptions
@@ -294,6 +301,65 @@ class GameRouter:
     @host_only
     def stop_media(self, request: Request, room_id: str):
         self.game_signal_service.stop_media(room_id)
+
+    @handle_exceptions
+    def send_start_multiplayer_game_signal(self, request: Request, room_id: str, test_id: str, current_question_number: Optional[int] = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        self.game_signal_service.schedule_timer_multiplayer_game(authenticated_uid,room_id, test_id, current_question_number)
+
+    @handle_exceptions
+    @host_only
+    def pause_multiplayer_game(self, request: Request, room_id: str):
+        self.game_signal_service.pause_timer_multiplayer_game(room_id)
+
+    @handle_exceptions
+    def submit_multiplayer_answer(self, request: Request, room_id: str, answer: Answer, group_id: Optional[str] = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        self.game_data_service.multiplayer_submit_answer(room_id, authenticated_uid, answer, group_id)
+        return {"message": "Answer submitted successfully"}
+    
+    @handle_exceptions
+    @host_only
+    def end_multiplayer_game(self, request: Request, room_id: str):
+        self.game_signal_service.end_multiplayer_game(room_id)
+
+    @handle_exceptions
+    def send_group_invite(self, request: Request, room_id: str, target_player_uid: str, player_name: str, group_id: Optional[str] = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        self.game_signal_service.send_group_invite_to_player(authenticated_uid, room_id, target_player_uid, player_name, group_id)
+        return {"message": "Group invite sent successfully"}
+    
+    @handle_exceptions
+    def join_group_invite(self, request: Request, room_id: str, group_id: str, inviter_uid: str):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        self.game_data_service.join_group_invite(room_id, group_id, authenticated_uid, inviter_uid)
+        return {"message": "Joined group invite successfully"}
+    
+    # @handle_exceptions
+    # def accept_group_invite(self, request: Request, room_id: str, group_id: str):
+    #     user = request.state.user
+    #     authenticated_uid = user["uid"]
+    #     self.game_data_service.accept_group_invite(room_id, authenticated_uid, group_id)
+    #     return {"message": "Accepted group invite successfully"}
+
+    
+    # @handle_exceptions
+    # @host_only
+    # def create_practice_room(self, request: Request, room_id: str, room_data: Dict[str, str]):
+    #     user = request.state.user
+    #     authenticated_uid = user["uid"]
+    #     email = user.get("email", "")
+    #     if not email or "@" not in email:
+    #         raise ValueError("Only hosts with valid email can create practice rooms")
+        
+    #     self.game_data_service.create_practice_room(room_id, room_data)
+    #     return {"message": "Practice room created successfully", "roomId": room_id}    
+
+    
 
 
 

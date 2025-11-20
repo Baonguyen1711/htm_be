@@ -11,10 +11,11 @@ class RoomRepository(BaseRepository):
         filters = [("ownerId", "==", user_id)]
         return self.get_documents_by_filter(filters)
     
-    def create_room(self, data, room_id):
+    def create_room(self, data, room_id, is_practice=False):
         room = {
             **data,
-            "roomId": room_id
+            "roomId": room_id,
+            "isPractice": is_practice
         }
         return self.create_new_document(room, room_id)
     

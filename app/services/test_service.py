@@ -13,7 +13,8 @@ from ..repositories.firestore.question_repository import QuestionRepository
 from ..repositories.realtimedb.realtime_question_repository import RealtimeQuestionRepository
 from ..dependencies.service_dependencies import get_test_repository, get_question_repository, get_realtime_question_repository
 
-from ..util.file_processing import process_excel_file
+from ..util.file_processing import process_excel_file, process_excel_file_for_multiplayer
+from ..util.get_random_string import get_random_string
 from google.cloud import firestore
 import base64
 
@@ -38,6 +39,11 @@ class TestService:
         
         return test_name_list
 
+    def get_total_question_by_test_id(self, test_id: str):
+        return self.test_repository.get_total_question_by_test_id(test_id)
+
+    def get_test_name_by_test_id(self, test_id: str):
+        return self.test_repository.get_test_name_by_test_id(test_id)
 
     def process_test_data(self, uid: str, test_name: str):
 
@@ -52,6 +58,7 @@ class TestService:
         round_1 = sorted([q for q in questions if q["round"] == 1], key=lambda x: x["stt"])
         round_2 = sorted([q for q in questions if q["round"] == 2], key=lambda x: x["stt"])
         turn = sorted([q for q in questions if q["round"] == "turn"], key=lambda x: x["stt"])
+        multiplayer = [q for q in questions if q["round"] == "MULTIPLAYER"]
 
         grouped_round_3 = defaultdict(list)
         for q in [q for q in questions if q["round"] == 3]:
@@ -70,7 +77,8 @@ class TestService:
             "round_2": round_2,
             "round_3": dict(grouped_round_3),
             "round_4": dict(grouped_round_4),
-            "turn": turn
+            "turn": turn,
+            "multiplayer": multiplayer
         }
         logger.info(f"result {result}")
         set_cached_test(uid, test_name, result)
@@ -93,6 +101,11 @@ class TestService:
             if questions:
                 # Convert QuerySnapshot to list of dictionaries
                 question_list = [q for q in questions] if questions else []
+                logging.info(f"question_list {question_list}")
+
+                if("type" in test_data and test_data["type"] == "multiplayer"):
+                    return question_list
+                
 
                 # Combine test and its questions into a plain dict
                 result.append({
@@ -122,13 +135,14 @@ class TestService:
         round_3 = dict(grouped_round_3)
         round_4 = dict(grouped_round_4)
         turn = sorted([question for question in question_list if question["round"] == "turn"]  , key=lambda x: x["stt"])
-        
+        multiplayer = [q for q in questions if q["round"] == "MULTIPLAYER"]
         result = {
             "round_1": round_1,
             "round_2": round_2,
             "round_3": round_3,
             "round_4": round_4,
-            "turn": turn
+            "turn": turn,
+            "multiplayer": multiplayer
         }
 
         if "error" in tests:
@@ -150,7 +164,6 @@ class TestService:
             "testName": test_name,
             "createdAt": firestore.SERVER_TIMESTAMP,
             "owner": uid,
-            "totalQuestions": 0,
             "status": "active"
         }
 
@@ -178,6 +191,35 @@ class TestService:
 
         logger.info(f"Final service result: {final_result}")
         return final_result
+    
+    async def process_test_file_for_multiplayer(self, test_name: str, uid: str, file: UploadFile, is_public: bool):
+        existing_test = self.test_repository.get_test_by_test_name(test_name, uid)
+        logger.info(f"existing_test {existing_test}")
+        if existing_test:
+            raise HTTPException(status_code=400, detail=f"Bộ đề với tên '{test_name}' đã tồn tại.")
+        test_data = {
+            "testName": test_name,
+            "type": "multiplayer",
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "owner": uid,
+            "status": "active"
+        }
+        test_id = self.test_repository.create_test(test_data)
+        logger.info(f"Created test with ID: {test_id}")
+        update_result = self.test_repository.update_test(test_id, {"testId": test_id})
+        logger.info(f"Updated test with its own ID: {update_result}")
+        processing_result = await process_excel_file_for_multiplayer(test_id, file, self.test_repository, is_public)
+        logger.info(f"Excel file processing result: {processing_result}")
+        final_result = {
+            "test_id": test_id,
+            "test_name": test_name,
+            "owner": uid,
+            "filename": file.filename,
+            "processing_result": processing_result,
+            "status": "completed"
+        }
+        logger.info(f"Final service result: {final_result}")
+        return final_result
         
 
     def get_packet_name(self, test_data: dict) -> dict:
@@ -200,16 +242,16 @@ class TestService:
     ) -> dict:
 
         try:
-            question_index =question_number - 1 if question_number is not None else None
+            question_index = question_number -1  if question_number is not None else None
             if question_index is not None and question_index < 0:
                 raise ValueError("Question number must be positive")
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid question number")
 
-        round_key = "turn" if round == "turn" else f"round_{round}"
+        round_key = round if round == "turn" or round == "multiplayer" else f"round_{round}"
         salt = "HTMNBK2025"
         logger.info(f"test_data {test_data}")
-        if round_key not in test_data:
+        if round_key is not None and round_key not in test_data:
             raise HTTPException(status_code=400, detail="Invalid round")
 
         # Helper for pagination
@@ -218,8 +260,11 @@ class TestService:
             end = start + limit
             return data[start:end]
 
-        if round in ["1", "2", "turn"]:
+        if round in ["1", "2", "turn", "multiplayer"]:
+            logger.info(f"round_key {round_key}")
+            logger.info(f"test_data[round_key] {test_data[round_key]}")
             questions = test_data[round_key]
+            logger.info(f"questions 1 :{questions}")
             if question_index is not None:
                 if 0 <= question_index < len(questions):
                     return questions[question_index]
@@ -300,11 +345,11 @@ class TestService:
         
     def get_questions_by_round(self, test_data: dict, round: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None) -> dict:
 
-        round_key = f"round_{round}"
+        round_key = round if round == "turn" or round == "multiplayer" else f"round_{round}"
         if round_key not in test_data:
             raise HTTPException(status_code=400, detail="Invalid round")
 
-        if round in ["1", "2"]:
+        if round in ["1", "2", "turn", "multiplayer"]:
             # Simple list lookup for round_1 and round_2
             # logger.info(f"questions index :{question_index}")
             questions = test_data[round_key]
@@ -353,4 +398,69 @@ class TestService:
         except Exception as e:
             logging.error(f"Unexpected error updating question {question_id}: {e}")
             return {"error": f"An unexpected error occurred: {e}"}
+        
+    def get_random_question_from_database(self, limit: int, uid, catergory: Optional[str] = None):
+        try:
+            result = self.question_repository.get_random_question_from_database(limit, catergory)        
+            logger.info(f"random test: {result}")
 
+            test_name = get_random_string(8)
+            logger.info(f"testname: {test_name}")
+
+
+            test_data = {
+                "testName": test_name,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "owner": uid,
+                "status": "active",
+                "totalQuestions": limit
+            }
+
+            test_id = self.test_repository.create_test(test_data)
+
+            self.test_repository.update_test(test_id, {"testId": test_id})
+
+            for index in range(len(result)):
+                question_object = {
+                    **result[index],
+                    "testId": test_id,
+                    "stt": index+1
+                }
+                logger.info(f"creating question: {question_object}")
+                self.question_repository.create_question(question_object)
+
+
+            return {
+                "testName": test_name,
+                "test": result,
+                "testId": test_id
+            } 
+        except Exception as e:
+            logging.error(f"Unexpected error getting random question: {e}")
+            return {"error": f"An unexpected error occurred: {e}"}
+
+
+    def public_question(self, question_id):
+        try:
+            self.question_repository.public_question(question_id)            
+
+        except Exception as e:
+            logging.error(f"Unexpected error updating question {question_id}: {e}")
+            return {"error": f"An unexpected error occurred: {e}"}
+
+    def private_question(self, question_id):
+        try:
+            self.question_repository.private_question(question_id)            
+
+        except Exception as e:
+            logging.error(f"Unexpected error updating question {question_id}: {e}")
+            return {"error": f"An unexpected error occurred: {e}"}
+
+    def check_test_ownership(self, question_id: str, uid: str) -> bool:
+        test_id = self.question_repository.get_test_id_by_question_id(question_id)
+        if not test_id:
+            raise HTTPException(status_code=404, detail="Question not found")
+        owner_id = self.test_repository.get_owner_by_test_id(test_id)
+        if not owner_id:
+            raise HTTPException(status_code=404, detail="Test not found")
+        return owner_id == uid

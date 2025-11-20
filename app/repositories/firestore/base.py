@@ -1,5 +1,6 @@
 import bcrypt
 from ...database import db
+from typing import Optional
 
 class BaseRepository:
     def __init__(self, collection_name: str, database):
@@ -30,10 +31,14 @@ class BaseRepository:
         docs = self.collection.stream()
         return [doc.to_dict() for doc in docs]
 
-    def get_documents_by_filter(self, filters: list[tuple[str, str, any]]):
+    def get_documents_by_filter(self, filters: list[tuple[str, str, any]], limit : Optional[int] = None):
         query = self.collection
         for filter_field, operator, filter_value in filters:
             query = query.where(field_path=filter_field, op_string=operator, value=filter_value)
+
+        if limit is not None:
+            query = query.limit(limit)
+            
         docs = query.stream()
         return [doc.to_dict() for doc in docs]
 

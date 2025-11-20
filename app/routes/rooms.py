@@ -1,3 +1,4 @@
+from typing import Dict
 from fastapi import APIRouter
 from starlette.requests import Request
 from ..models.questions import  Grid
@@ -56,12 +57,23 @@ class RoomRouter:
         }
         
     @handle_exceptions
-    @host_only
-    def create_new_room(self, request: Request, expired_time: int, password: str = None, max_players: int = 4):
+    def create_new_room(self, request: Request, expired_time: int, room_mode: str, password: str = None, max_players: int = 4):
         user = request.state.user
         authenticated_uid = user["uid"]
-        room_id = self.room_service.create_room(authenticated_uid, expired_time, password, max_players)
+        
+        room_id = self.room_service.create_room(authenticated_uid, room_mode, expired_time, password, max_players)
         return {"roomId": room_id, "isActive": True,"message": "Room created successfully!"}
+
+    @handle_exceptions
+    def create_practice_room(self, request: Request, room_id: str, room_data: Dict[str, str]):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        self.room_service.create_practice_room(room_id, room_data)
+        logger.info(f"Practice room {room_id} created by {authenticated_uid}")
+
+        
+        return {"message": "Practice room created successfully", "roomId": room_id}
 
     # API Endpoint: Deactivate a room
     # @room_routers.post("/api/rooms/{room_id}/deactivate")

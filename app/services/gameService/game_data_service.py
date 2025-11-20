@@ -12,12 +12,25 @@ from ...models.scores import ScoreRule
 # FIXED: Import from service_dependencies to break circular import
 from ...dependencies.service_dependencies import get_game_repository, get_test_service
 import logging
+from ...helper.global_variable import is_key_exist_in_dict, group_id_list
+from ...constants.game_constants import MULTIPLAYER_QUESTION_TIME, MULTIPLAYER_SCORING_TIME_LAPSE
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class GameDataService:
     def __init__(self, game_repository: GameRepository = Depends(get_game_repository), test_service: TestService = Depends(get_test_service)):
         self.game_repository = game_repository
         self.test_service = test_service
+
+    def send_specific_question_to_player(self, uid: str, test_name: str, room_id: str, round: Optional[str] = None, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
+        test_data = self.test_service.process_test_data(uid, test_name)
+        logger.info(f"test_data {test_data}")
+
+        question = self.test_service.get_specific_question(test_data,round,packet_name, difficulty, question_number=question_number, page=page, limit=limit)
+        question_without_answer = self.test_service.get_question_without_answer(question, room_id)
+        logger.info(f"question {question}")
+        logger.info(f"question_without_answer {question_without_answer}")
+        self.send_question_to_player(room_id,question_without_answer)
+        return question
 
     def send_grid(self, room_id: str, grid: List[List[str]]):
         self.game_repository.set_round_2_grid(room_id, grid)
@@ -158,6 +171,103 @@ class GameDataService:
         logger.info(f"player_answer {player_answer}")
 
         self.set_single_player_answer(room_id, uid, player_answer)
+
+    def multiplayer_submit_answer(self,room_id: str, uid: str, answer: Answer, group_id: Optional[str] = None):
+        logger.info("Attempting to submit multiplayer answer")
+        logger.info(f"room_id: {room_id}, uid: {uid}, answer: {answer}, group_id: {group_id}")
+
+        player_answer = self.get_player_answer(room_id, uid)
+        logger.info(f"player_answer at start{player_answer}")
+
+        if group_id is not None:
+            player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{group_id}")
+
+        # if not player_answer:
+        #     return 
+
+        logger.info(f"player {player_answer}")
+        player_answer["is_correct"] = False  
+        current_correct_answer = self.get_current_correct_answer(room_id)           
+        submitted = normalize_string(answer.answer)
+        answer_list = player_answer["answers"] if "answers" in player_answer else []
+        # submitted_player_group_id = ""
+        # for key, value in group_id_list[f"{room_id}"].items():
+        #     if uid in value:
+        #         submitted_player_group_id = key
+        #         break
+        #answer_list.append(answer.answer)
+        logger.info(f"player answer {player_answer}")
+        logger.info(f"submit {submitted}")
+        logger.info(f"correcrt {current_correct_answer}")
+
+        player_answer["answer"] = answer.answer
+        player_answer["time"] = float(answer.time)
+        if group_id is not None:
+            player_answer["group_id"] = group_id
+        
+        if any(submitted == normalize_string(correct_answer) for correct_answer in current_correct_answer):
+            logger.info(f"submit {submitted}")
+            score = (MULTIPLAYER_QUESTION_TIME//MULTIPLAYER_SCORING_TIME_LAPSE-((player_answer["time"]//MULTIPLAYER_SCORING_TIME_LAPSE)))*MULTIPLAYER_SCORING_TIME_LAPSE
+            logger.info(f"score {score}")
+            logger.info(f"MULTIPLAYER_QUESTION_TIME {MULTIPLAYER_QUESTION_TIME}")
+            logger.info(f"MULTIPLAYER_SCORING_TIME_LAPSE {MULTIPLAYER_SCORING_TIME_LAPSE}")
+            logger.info(f"player_answer[time] {player_answer['time']}")
+            player_answer["is_correct"] = True
+            # if group_id is not None:
+            #     player_answer["score"] += score 
+            if group_id is not None:
+                player_answer["score"] += score // len(player_answer["uid"])
+
+            else:
+                player_answer["score"] += score
+
+
+        answer_list.append({
+            "answer": answer.answer,
+            "isCorrect": player_answer["is_correct"]
+        })
+
+        logger.info(f"player_answer after {player_answer}")
+
+        player_answer["answers"] = answer_list
+        logger.info(f"answer_list {answer_list}")
+        if group_id is not None:
+            self.set_single_player_answer(room_id, group_id, player_answer)
+        else:
+            self.set_single_player_answer(room_id, uid, player_answer)
+
+    def trigger_scoreboard(self, room_id: str, question_number: int):
+        logger.info(f"Triggering scoreboard for room {room_id}, q{question_number}")
+        player_answer = self.get_all_player_answer(room_id)
+        logger.info(f"player_answer {player_answer}")
+        score_list = []
+        for player in player_answer.values():
+            logger.info(f"player {player}")
+            if "groupId" in player:
+                score_list.append({
+                "playerName": player["userName"],
+                "avatar": player["avatar"],
+                "score": player["score"],
+                "isCorrect": player["is_correct"],  # Send as boolean
+                "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
+                "stt": player["stt"],
+                "uid": player["uid"],
+                "groupId": player["groupId"]
+            })
+                
+                logger.info(f"score_list {score_list}")
+            else:
+                score_list.append({
+                    "playerName": player["userName"],
+                    "avatar": player["avatar"],
+                    "score": player["score"],
+                    "isCorrect": player["is_correct"],  # Send as boolean
+                    "isModified": player["is_correct"] if round != "3" else False,  # No flashing for Round 3
+                    "stt": player["stt"],
+                    "uid": player["uid"]
+                })
+
+        self.game_repository.send_score_list(room_id, score_list)
 
     def obstacle_score(self,room_id: str, is_obstacle_correct: bool, player_answer, stt: str, obstacle_point: int, score_list: List, round: str):
         if is_obstacle_correct:
@@ -457,6 +567,112 @@ class GameDataService:
 
     def broadcast_player_answer(self, room_id: str, answer_list: List[Answer]):
         self.game_repository.broadcast_player_answer(room_id, answer_list)
+
+    def create_practice_room(self, room_id: str, room_data: Dict[str, Any]) -> None:
+        self.game_repository.create_practice_room(room_id, room_data)
+
+    def join_group_invite(self, room_id: str, group_id: str, uid: str, inviter_uid: str) -> None:
+        logger.info(f"Joining group invite: room_id={room_id}, group_id={group_id}, uid={uid}, inviter_uid={inviter_uid}")
+        target_player = self.game_repository.find_object_in_path_by_field(f"{room_id}/scores", "uid", uid)
+        inviter_player = self.game_repository.find_object_in_path_by_field(f"{room_id}/scores", "uid", inviter_uid)
+
+
+        logger.info(f"target_player {target_player}")
+        logger.info(f"inviter_player {inviter_player}")
+
+        target_player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{uid}")
+        inviter_player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{inviter_uid}")
+
+        logger.info(f"target_player_answer {target_player_answer}")
+        logger.info(f"inviter_player_answer {inviter_player_answer}")
+
+        
+        if not target_player:
+            raise ValueError(f"Player with uid={uid} not found in room {room_id}")
+        
+        target_player_key, target_player_data = next(iter(target_player.items()))
+        if inviter_player:
+            inviter_player_key, inviter_player_data = next(iter(inviter_player.items()))
+        logger.info(f"target_player_key {target_player_key}")
+        logger.info(f"target_player_data {target_player_data}")
+
+
+        target_group = self.game_repository.find_object_in_path_by_field(f"{room_id}/scores", "groupId", group_id)
+        target_group_player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{group_id}")
+
+        logger.info(f"target_group_player_answer {target_group_player_answer}")
+        logger.info(f"target_group {target_group}")
+
+        if not target_group:
+            
+            self.game_repository.update_node_path(f"{room_id}/scores/{target_player_key}",{
+                "groupId": group_id,
+                "uid": [target_player_data["uid"], inviter_player_data["uid"]],
+                "playerName": [target_player_data["playerName"], inviter_player_data["playerName"]],
+                "avatar": [target_player_data["avatar"], inviter_player_data["avatar"]],
+            })
+
+            self.game_repository.update_node_path(f"{room_id}/player_answer/{group_id}",{
+                **target_player_answer,
+                "uid": [target_player_data["uid"], inviter_player_data["uid"]],
+                "userName": [target_player_data["playerName"], inviter_player_data["playerName"]],
+                "avatar": [target_player_data["avatar"], inviter_player_data["avatar"]],
+                "groupId": group_id
+            })
+
+            self.game_repository.delete_data_from_a_score_list_node(room_id, inviter_player_key)
+            self.game_repository.delete_path(f"{room_id}/player_answer/{inviter_uid}")
+            self.game_repository.delete_path(f"{room_id}/player_answer/{uid}")
+            
+        else:
+            target_group_key, target_group_data = next(iter(target_group.items()))
+
+            uids = target_group_data.get("uid", [])
+            player_names = target_group_data.get("playerName", [])
+            avatars = target_group_data.get("avatar", [])
+
+            if not isinstance(uids, list):
+                uids = [uids]
+            if not isinstance(player_names, list):
+                player_names = [player_names]
+            if not isinstance(avatars, list):
+                avatars = [avatars]
+
+            uids.append(target_player_data["uid"])
+            player_names.append(target_player_data["playerName"])
+            avatars.append(target_player_data["avatar"])
+
+            self.game_repository.update_node_path(
+                f"{room_id}/scores/{target_group_key}",
+                {
+                    "uid": uids,
+                    "playerName": player_names,
+                    "avatar": avatars,
+                }
+            )
+
+            self.game_repository.update_node_path(
+                f"{room_id}/player_answer/{group_id}",
+                {
+                    **target_group_player_answer,
+                    "uid": uids,
+                    "userName": player_names,
+                    "avatar": avatars,
+                }
+            )
+
+            self.game_repository.delete_data_from_a_score_list_node(room_id, target_player_key)
+            # self.game_repository.delete_path(f"{room_id}/player_answer/{inviter_uid}")
+            self.game_repository.delete_path(f"{room_id}/player_answer/{uid}")
+
+
+
+
+        
+        
+
+
+
 
 
        

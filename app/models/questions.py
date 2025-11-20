@@ -11,7 +11,7 @@ class UpdateQuestionBody(BaseModel):
     answer: str | None = None
     type: str | None = None
     imgUrl: str | None = None
-    round:int | None = None
+    round:str | None = None
     test_id: str | None = None
 
 class Answer(BaseModel):

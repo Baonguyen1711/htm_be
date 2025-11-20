@@ -14,6 +14,11 @@ class RealTimeBaseRepository:
         ref = self.database.reference(f"{self.base_path}/{path}")
         ref.set(data)
 
+    def update_node_path(self, path, data):
+        logger.info(f"Updating data at path {self.base_path}/{path}: {data}")
+        ref = self.database.reference(f"{self.base_path}/{path}")
+        ref.update(data)
+
     def set_to_path_with_child_node(self, path, data):
         logger.info(f"Setting data to path {self.base_path}/{path}: {data}")
         ref = self.database.reference(f"{self.base_path}/{path}").push()
@@ -24,6 +29,18 @@ class RealTimeBaseRepository:
         logger.info(f"Reading data from path {self.base_path}/{path}")
         ref = self.database.reference(f"{self.base_path}/{path}")
         return ref.get()
+    
+    def find_object_in_path_by_field(self, path, field, value):
+        logger.info(f"Finding object in path {self.base_path}/{path} where {field}={value}")
+        ref = self.database.reference(f"{self.base_path}/{path}")
+        snapshot = ref.order_by_child(field).equal_to(value).get()
+        return snapshot
+    
+    def find_objects_with_field(self, path, field):
+        ref = self.database.reference(f"{self.base_path}/{path}")
+        snapshot = ref.get()
+        return {k: v for k, v in (snapshot or {}).items() if field in v}
+
     
     def delete_path(self, path):
         logger.info(f"Reading data from path {self.base_path}/{path}")

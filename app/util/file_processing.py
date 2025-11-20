@@ -2,8 +2,13 @@ from fastapi import HTTPException, logger
 from fastapi import FastAPI, Depends, UploadFile
 from openpyxl import load_workbook
 from io import BytesIO
+
+from torch import rand
 from ..repositories.firestore.test_repository import TestRepository
 import logging
+from .classify import classify_question
+import random
+from secrets import SystemRandom
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -181,6 +186,70 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     finally:
         await file.close()
+
+async def process_excel_file_for_multiplayer(test_id: str, file: UploadFile, test_repository: TestRepository, is_public: bool):
+    contents = await file.read()
+    workbook = load_workbook(BytesIO(contents))
+    result = {
+        "filename": file.filename,
+        "sheets": {}
+    }
+    try:
+        for sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+            data = [row for row in sheet.iter_rows(values_only=True)]
+            header = [str(h).strip() for h in data[0]]
+            processed_data = []
+            for row in data[1:]:
+                question_type = str(row[1]).strip().upper() if row[1] else ""
+                catergory = classify_question(row[2])
+
+                rand = SystemRandom()  # cryptographically secure generator
+                random_key = rand.random()
+
+                question_obj = {
+                    "stt": int(row[0]) if row[0] else None,
+                    "type": question_type,
+                    "question": row[2],
+                    "answer": row[7],
+                    "catergory": catergory,
+                    "randomKey": random_key
+                }
+                logger.info(f"question_obj: {question_obj}")
+                if question_type == "TRAC_NGHIEM":
+                    question_obj.update({
+                        "answerA": str(row[3]),
+                        "answerB": str(row[4]),
+                        "answerC": str(row[5]),
+                        "answerD": str(row[6]),
+                        "answer": str(row[7])
+                    })
+                    logger.info(f"question_obj: {question_obj}")
+
+                # Set public/private based on is_public flag
+                if is_public:
+                    question_obj.update({
+                        "isPublic": True,
+                    })
+                else:
+                    question_obj.update({
+                        "isPublic": False,
+                    })
+
+                processed_data.append(question_obj)
+            result["sheets"][sheet_name] = {
+                "sheet_name": sheet_name,
+                "content": processed_data
+            }
+            logger.info(f"Đã xử lý sheet: {sheet_name} với {len(data)} dòng")
+            logger.info(f"processed_data: {processed_data}")
+            process_sheet(processed_data, test_id, sheet_name, test_repository)
+        return result
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error processing custom Excel file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 def process_sheet(processed_data: list, test_id: str, round: int | str, test_repository: TestRepository):

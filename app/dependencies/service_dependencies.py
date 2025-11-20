@@ -61,3 +61,11 @@ def get_test_service():
         get_question_repository(),
         get_realtime_question_repository()
     )
+
+@lru_cache
+def get_game_data_service():
+    from app.services.gameService.game_data_service import GameDataService
+    return GameDataService(
+        get_game_repository(),
+        get_test_service()
+    )

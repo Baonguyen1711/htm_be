@@ -48,6 +48,8 @@ class AuthService:
 
         data = await request.json()
         room_id = data.get("roomId")
+        test_name = data.get("testName")
+        room_mode = data.get("roomMode")
         role = ""   
         user = request.state.user
         user_id = user["uid"]
@@ -86,16 +88,24 @@ class AuthService:
             "roomId": room_id,
             "role": role,
             "userId": user_id,
+            "testName": test_name,
+            "roomMode": room_mode,
             "exp": access_exp_time
         }
+        access_payload = {k: v for k, v in access_payload.items() if not (k == "roomMode" and v == "room")} # normal room does not have roomMode in query params
+
         access_token = pyjwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
 
         refresh_payload = {
             "userId": user_id,
             "roomId": room_id,
+            "testName": test_name,
+            "roomMode": room_mode,
             "role": role,
             "exp": refresh_exp_time
         }
+        refresh_payload = {k: v for k, v in refresh_payload.items() if not (k == "roomMode" and v == "room")} # normal room does not have roomMode in query params
+
         refresh_token = pyjwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
 
         # Log token expiration times for debugging

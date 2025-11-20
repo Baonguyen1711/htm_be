@@ -13,6 +13,12 @@ from .base import RealTimeBaseRepository
 class GameRepository(RealTimeBaseRepository):
     def __init__(self):
         super().__init__()
+
+    # def find_object_by_uid(self, path: str, uid: str) -> Optional[Dict[str, Any]]:
+    #     results = self.find_object_in_path_by_field(path, "uid", uid)
+    #     for key, value in results.items():
+    #         return value
+    #     return None
     
     def set_score_rules(self, room_id: str, rules: ScoreRule) -> None:
         self.set_to_path(f"{room_id}/rules", rules.dict())
@@ -100,6 +106,12 @@ class GameRepository(RealTimeBaseRepository):
     
     def send_score_list(self, room_id: str, scores_list: List[Dict[str, Any]]) -> None:
         self.set_to_path(f"{room_id}/scores", scores_list)
+
+    def update_data_under_a_score_list_node(self, room_id: str, group_id: str, key: str, score_data: Dict[str, Any]) -> None:
+        self.update_node_path(f"{room_id}/scores/{group_id}/{key}", score_data)
+
+    def delete_data_from_a_score_list_node(self, room_id: str, key: str) -> None:
+        self.delete_path(f"{room_id}/scores/{key}")
     
     def get_score_list(self, room_id: str) -> List[Dict[str, Any]]:
         return self.read_from_path(f"{room_id}/scores")
@@ -220,6 +232,44 @@ class GameRepository(RealTimeBaseRepository):
             "action": "stop",
         })
 
+    def schedule_timer_multiplayer_game(self, room_id: str, schedule, is_resume: bool) -> None:
+        self.set_to_path(f"{room_id}/multiplayer/schedule", {
+            "action": "play",
+            "schedule": schedule,
+        })
+
+        self.set_to_path(f"{room_id}/status", "started")
+        if(is_resume):
+            self.set_to_path(f"{room_id}/multiplayer/pause", "")
+
+    def send_countdown_time(self, room_id: str, countdown_time: int) -> None:
+        self.set_to_path(f"{room_id}/multiplayer/countdown",countdown_time)
+
+    def pause_timer_multiplayer_game(self, room_id: str,) -> None:
+        self.set_to_path(f"{room_id}/multiplayer/pause", {
+            "action": "pause",
+        })
+
+    def end_multiplayer_game(self, room_id: str,) -> None:
+        self.set_to_path(f"{room_id}/multiplayer/end", {
+            "action": "end",
+        })
+
+    def send_group_invite_to_player(self, uid: str, room_id: str, group_id: str, target_player_uid: str, player_name: str) -> None:
+        self.set_to_path(f"{room_id}/group_invites/{target_player_uid}", {
+            "from_uid": uid,
+            "group_id": group_id,
+            "from_player": player_name,
+            "timestamp": int(datetime.datetime.utcnow().timestamp() * 1000)
+        })
+
+        
+
+    # def join_group_invite(self, room_id: str, target_player_uid: str, group_id: str) -> None:
+    #     self.set_to_path(f"{room_id}/joined_groups/{target_player_uid}", {
+    #         "group_id": group_id,
+    #         "timestamp": int(datetime.datetime.utcnow().timestamp() * 1000)
+    #     })
 
     #Buzz repo
     def buzz_first(self, room_id:str, player_name: str):
@@ -252,11 +302,17 @@ class GameRepository(RealTimeBaseRepository):
     def get_players_in_room(self, room_id: str) -> List[Dict[str, Any]]:
         return (self.read_from_path(f"{room_id}/players"))
     
+    def get_room_status(self, room_id: str) -> str:
+        return self.read_from_path(f"{room_id}/status")
+    
     def set_player_to_room(self, room_id: str, player_list: List[Dict[str, Any]]):
         self.set_to_path(f"{room_id}/players", player_list)
 
     def set_spectator_to_room(self, room_id:str):
         return self.set_to_path_with_child_node(f"{room_id}/spectators", True)
+    
+    def create_practice_room(self, room_id: str, room_data: Dict[str, Any]) -> None:
+        self.set_to_path(f"/practice/{room_id}", room_data)
 
 
     
