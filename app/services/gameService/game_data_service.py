@@ -2,24 +2,32 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, logger, Depends
 from firebase_admin import db
 
+from app.models.state import GameState
+
 from ...models.scores import Score, ScoreRule
 
 from ...util.string_processing import normalize_string
 from ...repositories.realtimedb.game_repository import GameRepository
+from ...repositories.firestore.statistics_repository import StatisticsRepository
 from ..test_service import TestService
 from ...models.questions import Answer, Grid, PlacementArray
 from ...models.scores import ScoreRule
 # FIXED: Import from service_dependencies to break circular import
-from ...dependencies.service_dependencies import get_game_repository, get_test_service
+from ...dependencies.service_dependencies import get_game_repository, get_test_service, get_statistics_repository
 import logging
 from ...helper.global_variable import is_key_exist_in_dict, group_id_list
+from ...helper.time import now_ms
 from ...constants.game_constants import MULTIPLAYER_QUESTION_TIME, MULTIPLAYER_SCORING_TIME_LAPSE
+from ...constants.gemini_prompt import IS_ACCEPTED_ANSWER_PROMPT
+from ...util.gemini import prompting
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 class GameDataService:
-    def __init__(self, game_repository: GameRepository = Depends(get_game_repository), test_service: TestService = Depends(get_test_service)):
+    def __init__(self, game_repository: GameRepository,test_service: TestService,statistics_repository: StatisticsRepository):
+
         self.game_repository = game_repository
         self.test_service = test_service
+        self.statistics_repository = statistics_repository
 
     def send_specific_question_to_player(self, uid: str, test_name: str, room_id: str, round: Optional[str] = None, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
         test_data = self.test_service.process_test_data(uid, test_name)
@@ -110,6 +118,46 @@ class GameDataService:
             player["time"] = 0
 
         self.game_repository.broadcast_player_answer(room_id, current_player_answer_list)
+
+    def get_next_question(self, uid: str, test_name: str, room_id: str, round: Optional[str] = None, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None ):
+        current_state = self.game_repository.get_current_game_state(room_id)
+
+        current_question_index = (
+            current_state.get("currentQuestion", 0)
+            if current_state
+            else 0
+        )
+        
+        next_question_index = current_question_index + 1
+
+        self.send_specific_question_to_player(
+            uid=uid,
+            test_name=test_name,
+            room_id=room_id,
+            round=round,
+            question_number=next_question_index
+        )
+
+        self.game_repository.update_game_state(room_id, {
+            "currentQuestion": next_question_index,
+            "phase": "QUESTION"
+        })
+
+
+
+    def update_game_state(self, room_id: str, state: GameState):
+        logger.info(f"state {state}")
+
+        # 1 is the signal for time starting
+        if state.get("phaseStartTime") is not None and state.get("phaseStartTime") == 1:
+            state["phaseStartTime"] = now_ms()
+
+        # update_data = state.model_dump(exclude_none=True)
+
+        # logger.info(f"update_data{update_data}")
+
+        self.game_repository.update_game_state(room_id, state)
+
     
 
     #GET 
@@ -134,6 +182,9 @@ class GameDataService:
     def get_current_correct_answer(self,room_id: str):
         return self.game_repository.get_current_correct_answer(room_id)
     
+    def get_current_correct_answer_value(self,room_id: str):
+        return self.game_repository.get_current_correct_answer_value(room_id)
+    
     def get_all_player_answer(self, room_id: str) -> List[Dict[str, Any]]:
         return self.game_repository.get_all_player_answer(room_id)
     
@@ -154,7 +205,9 @@ class GameDataService:
             return 
 
         logger.info(f"player {player_answer}")
-        current_correct_answer = self.get_current_correct_answer(room_id)           
+        current_correct_answer = self.get_current_correct_answer(room_id)        
+        current_question = self.game_repository.get_current_question(room_id)["question"]   
+        logger.info(f"current_question {current_question}")
         submitted = normalize_string(answer.answer)
 
         logger.info(f"player answer {player_answer}")
@@ -167,29 +220,37 @@ class GameDataService:
         if any(submitted == normalize_string(correct_answer) for correct_answer in current_correct_answer):
             logger.info(f"submit {submitted}")
             player_answer["is_correct"] = True
+        else:
+            is_correct = prompting(IS_ACCEPTED_ANSWER_PROMPT.replace("{question}", current_question).replace("{answer}", answer.answer))
+            logger.info(f"IS_ACCEPTED_ANSWER_PROMPT: {IS_ACCEPTED_ANSWER_PROMPT}")
+            logger.info(f"is_correct prompt: {is_correct}")
+            if is_correct == "True":
+                player_answer["is_correct"] = True
 
         logger.info(f"player_answer {player_answer}")
 
         self.set_single_player_answer(room_id, uid, player_answer)
 
-    def multiplayer_submit_answer(self,room_id: str, uid: str, answer: Answer, group_id: Optional[str] = None):
+    def multiplayer_submit_answer(self,room_id: str, uid: str, answer: Answer, test_name: str, group_id: Optional[str] = None):
         logger.info("Attempting to submit multiplayer answer")
         logger.info(f"room_id: {room_id}, uid: {uid}, answer: {answer}, group_id: {group_id}")
 
         player_answer = self.get_player_answer(room_id, uid)
         logger.info(f"player_answer at start{player_answer}")
 
-        if group_id is not None:
-            player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{group_id}")
+        # if group_id is not None:
+        #     player_answer = self.game_repository.read_from_path(f"{room_id}/player_answer/{group_id}")
 
         # if not player_answer:
         #     return 
 
-        logger.info(f"player {player_answer}")
-        player_answer["is_correct"] = False  
-        current_correct_answer = self.get_current_correct_answer(room_id)           
+        logger.info(f"player after {player_answer}")
+        # player_answer["is_correct"] = False  
+        current_correct_answer = self.get_current_correct_answer(room_id)    
+        current_correct_answer_value = self.get_current_correct_answer_value(room_id)         
         submitted = normalize_string(answer.answer)
         answer_list = player_answer["answers"] if "answers" in player_answer else []
+        current_question = self.game_repository.get_current_question(room_id)["question"] 
         # submitted_player_group_id = ""
         # for key, value in group_id_list[f"{room_id}"].items():
         #     if uid in value:
@@ -220,8 +281,40 @@ class GameDataService:
 
             else:
                 player_answer["score"] += score
+        else:
+            is_correct = prompting(IS_ACCEPTED_ANSWER_PROMPT.replace("{question}", current_question).replace("{answer}", answer.answer))
+            logger.info(f"IS_ACCEPTED_ANSWER_PROMPT: {IS_ACCEPTED_ANSWER_PROMPT}")
+            logger.info(f"is_correct prompt: {is_correct}")
+            logger.info(f"submitted {submitted}")
+            logger.info(f"current_question {current_question}") 
+            if is_correct == "True":
+                logger.info(f"submit {submitted}")
+                score = (MULTIPLAYER_QUESTION_TIME//MULTIPLAYER_SCORING_TIME_LAPSE-((player_answer["time"]//MULTIPLAYER_SCORING_TIME_LAPSE)))*MULTIPLAYER_SCORING_TIME_LAPSE
+                logger.info(f"score {score}")
+                logger.info(f"MULTIPLAYER_QUESTION_TIME {MULTIPLAYER_QUESTION_TIME}")
+                logger.info(f"MULTIPLAYER_SCORING_TIME_LAPSE {MULTIPLAYER_SCORING_TIME_LAPSE}")
+                logger.info(f"player_answer[time] {player_answer['time']}")
+                player_answer["is_correct"] = True
+                # if group_id is not None:
+                #     player_answer["score"] += score 
+                if group_id is not None:
+                    player_answer["score"] += score // len(player_answer["uid"])
 
-
+                else:
+                    player_answer["score"] += score
+            else:
+                player_answer["is_correct"] = False
+                
+        self.statistics_repository.add_statistics(
+            uid,
+            test_name,
+            {
+                "question": current_question,
+                "answer": submitted,
+                "correct_answer": current_correct_answer_value,
+                "is_correct": player_answer["is_correct"]
+            }
+        )
         answer_list.append({
             "answer": answer.answer,
             "isCorrect": player_answer["is_correct"]

@@ -19,6 +19,9 @@ class GameRepository(RealTimeBaseRepository):
     #     for key, value in results.items():
     #         return value
     #     return None
+
+    def get_current_question(self, room_id: str) -> Dict[str, Any]:
+        return self.read_from_path(f"{room_id}/questions")
     
     def set_score_rules(self, room_id: str, rules: ScoreRule) -> None:
         self.set_to_path(f"{room_id}/rules", rules.dict())
@@ -216,6 +219,9 @@ class GameRepository(RealTimeBaseRepository):
     
     def get_current_correct_answer(self,room_id: str):
         return self.read_from_path(f"{room_id}/current_correct_answer")
+    
+    def get_current_correct_answer_value(self,room_id: str):
+        return self.read_from_path(f"{room_id}/current_correct_answer_value")
 
     def update_score_each_round(self,room_id: str, data: Dict[str, Any], round: str) -> None:
         logger.info(f"Setting round scores data for room {room_id}, round {round}: {data}")
@@ -314,6 +320,14 @@ class GameRepository(RealTimeBaseRepository):
     def create_practice_room(self, room_id: str, room_data: Dict[str, Any]) -> None:
         self.set_to_path(f"/practice/{room_id}", room_data)
 
+    def set_game_state(self, room_id: str, state: Any):
+        self.set_to_path(f"{room_id}/state", state)
+
+    def get_current_game_state(self, room_id: str):
+        return self.read_from_path(f"{room_id}/state")        
+
+    def update_game_state(self, room_id, updated_value: Any):
+        self.update_node_path(f"{room_id}/state", updated_value)
 
     
 

@@ -28,6 +28,13 @@ class RoomService:
     
     def create_room(self, data, is_practice=False):
         return self.room_repository.create_room(data, is_practice=is_practice)
+    
+    def add_test_name_to_room(self, room_id: str, test_name: str):
+        self.update_room(
+        room_id,
+        {
+            "testName": test_name
+        })
 
     def create_practice_room(self, room_id: str, room_data: Any) -> None:
         self.game_repository.create_practice_room(room_id, room_data)
@@ -74,7 +81,7 @@ class RoomService:
             logger.error(f"Error validating room password: {e}")
             return False
 
-    def create_room(self, owner_id, room_mode, duration_in_hours, password: str = None, max_players: int = 4):
+    def create_room(self, owner_id, room_mode, duration_in_hours,  password: str = None, max_players: int = 4):
         # Validate max_players
         if max_players < 4 or max_players > 8:
             return {"error": "Max players must be between 4 and 8"}
@@ -131,6 +138,8 @@ class RoomService:
         # Generate available positions
         available_positions = [i for i in range(1, max_players + 1) if i not in occupied_positions]
 
+        test_name = room_data.get("testName")
+
         status = self.game_repository.get_room_status(room_id)
 
         return {
@@ -141,6 +150,7 @@ class RoomService:
             "occupied_positions": occupied_positions,
             "available_positions": available_positions,
             "status": status,
+            "test_name": test_name,
             "current_players": [
                 {
                     "uid": player.get("uid"),

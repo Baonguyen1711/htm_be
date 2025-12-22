@@ -10,13 +10,14 @@ from app.services.history_service import HistoryService
 from app.services.room_service import RoomService
 from app.services.gameService.game_data_service import GameDataService
 from app.services.gameService.game_signal_service import GameSignalService
+from app.services.statistics_service import StatisticsService
 
 
 # FIXED: Import service factories from service_dependencies to break circular imports
 from .service_dependencies import (
     get_game_repository, get_history_repository, get_question_repository,
     get_realtime_db, get_realtime_question_repository, get_room_repository,
-    get_test_repository, get_user_repository, get_test_service
+    get_test_repository, get_user_repository, get_test_service, get_statistics_repository
 )
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -36,7 +37,7 @@ def get_db():
 
 @lru_cache
 def get_game_data_service():
-    return GameDataService(get_game_repository(), get_test_service())
+    return GameDataService(get_game_repository(), get_test_service(), get_statistics_service())
 
 @lru_cache
 def get_game_signal_service():
@@ -57,6 +58,10 @@ def get_auth_service():
 @lru_cache
 def get_history_service():
     return HistoryService(get_history_repository(), get_game_repository())
+
+@lru_cache
+def get_statistics_service():
+    return StatisticsService(get_statistics_repository())
 
 @lru_cache
 def get_room_service():

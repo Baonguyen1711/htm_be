@@ -9,6 +9,7 @@ from app.repositories.firestore.user_repository import UserRepository
 from app.repositories.firestore.history_repository import HistoryRepository
 from app.repositories.realtimedb.game_repository import GameRepository
 from app.repositories.realtimedb.realtime_question_repository import RealtimeQuestionRepository
+from app.repositories.firestore.statistics_repository import StatisticsRepository
 import firebase_admin
 from firebase_admin import auth, credentials
 
@@ -47,6 +48,10 @@ def get_user_repository():
 def get_history_repository():
     return HistoryRepository(db)
 
+@lru_cache
+def get_statistics_repository():
+    return StatisticsRepository(db)
+
 # Add missing function for realtime database
 @lru_cache
 def get_realtime_db():
@@ -67,5 +72,6 @@ def get_game_data_service():
     from app.services.gameService.game_data_service import GameDataService
     return GameDataService(
         get_game_repository(),
-        get_test_service()
+        get_test_service(),
+        get_statistics_repository()
     )

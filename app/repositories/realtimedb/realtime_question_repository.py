@@ -28,6 +28,12 @@ class RealtimeQuestionRepository(RealTimeBaseRepository):
     def set_current_correct_answer(self, room_id: str, answer: str):
         self.set_to_path(f"{room_id}/current_correct_answer", answer)
 
+    def set_current_correct_answer_value(self, room_id: str, answer_value: str):
+        self.set_to_path(f"{room_id}/current_correct_answer_value", answer_value)
+
+    
+
+
     
 
     

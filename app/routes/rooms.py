@@ -30,6 +30,8 @@ class RoomRouter:
         self.router.post("/spectator/join")(self.spectator_join_room)
         self.router.post("/kick")(self.kick_player)
 
+        self.router.post("/update")(self.update_room)
+
 
     @handle_exceptions
     async def validate_room(self, room_id: str, password: str = None):
@@ -74,6 +76,14 @@ class RoomRouter:
 
         
         return {"message": "Practice room created successfully", "roomId": room_id}
+    
+    @handle_exceptions
+    def update_room(self, request: Request, room_id: str, test_name: str):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        self.room_service.add_test_name_to_room(room_id, test_name)
+        return {"message": "Add test name to room successfully", "test_name": test_name}
 
     # API Endpoint: Deactivate a room
     # @room_routers.post("/api/rooms/{room_id}/deactivate")

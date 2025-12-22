@@ -1,4 +1,8 @@
+import json
+import re
 from .base import BaseRepository
+from ...util.gemini import prompting
+from ...constants.gemini_prompt import EXTRACT_IDEA_PROMPT
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,10 +29,33 @@ class TestRepository(BaseRepository):
         test_data = self.get_test_by_id(test_id)
         return test_data.get("owner")
     
+    def extract_idea_and_link(self, questions_and_answers):
+        
+        questions_json = json.dumps(questions_and_answers, ensure_ascii=False)
+        prompt_filled = EXTRACT_IDEA_PROMPT.replace("{questions}", questions_json)
+        print("prompt filled", prompt_filled)
+
+        data = prompting(prompt_filled)
+
+        # Loại bỏ ```json ``` nếu có
+        # cleaned_text = re.sub(r"^```(json)?|```$", "", raw_text.strip(), flags=re.MULTILINE).strip()
+        print("data", data)
+    
+        # try:
+        #     data = json.loads(raw_text)
+        #     print("data",data)
+        # except json.JSONDecodeError as e:
+        #     print("JSON parse error:", e)
+        #     print("Raw text from Gemini:", repr(raw_text))
+        #     raise e
+
+        return data
+    
     def set_test_by_batch(self, questions, test_id, round):
         batch = self.database.batch()
         batch_size = 500  
         uploaded_questions = 0
+        local_questions_and_answers = []
 
         for i, q in enumerate(questions, start=1):
             # Tạo document với ID ngẫu nhiên cho câu hỏi
@@ -43,6 +70,7 @@ class TestRepository(BaseRepository):
                 "round": round,
                 "question": q["question"],
                 "answer": q["answer"],
+                "answer_value": q["answer_value"],
                 "answerA": q.get("answerA") if q.get("answerA") else None,
                 "answerB": q.get("answerB") if q.get("answerB") else None,
                 "answerC": q.get("answerC") if q.get("answerC") else None,
@@ -58,6 +86,12 @@ class TestRepository(BaseRepository):
             batch.set(question_ref, question_data)
             uploaded_questions += 1
 
+            local_questions_and_answers.append({
+                "questionId": question_id,
+                "question": q["question"],
+                "answer": q["answer"],
+            })
+
             # Commit batch khi đủ 500 hoặc hết danh sách
             if uploaded_questions % batch_size == 0 or uploaded_questions == len(questions):
                 batch.commit()
@@ -65,6 +99,26 @@ class TestRepository(BaseRepository):
                 batch = self.database.batch()  # Reset batch
 
         self.update_test(test_id, {"totalQuestions": len(questions)})
+
+        print("local_questions_and_answers",local_questions_and_answers)
+        ideas_and_link = []
+        try:
+            ideas_and_link = self.extract_idea_and_link(local_questions_and_answers)
+        except Exception as e:
+            print("Error khi extract idea:", e)
+            ideas_and_link = []
+
+        update_batch = self.database.batch()
+        for item in ideas_and_link:
+            question_ref = self.database.collection("questions").document(item["questionId"])
+            update_batch.update(question_ref, {
+                "keyIdea": item.get("keyIdea"),
+                "referenceLink": item.get("referenceLink")
+            })
+
+        update_batch.commit()
+        print(f"Đã thêm idea và link cho {len(ideas_and_link)} câu hỏi")
+
 
         return {
             "message": f"Upload thành công bộ đề {test_id}",

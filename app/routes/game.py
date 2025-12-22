@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import traceback
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, HTTPException, Request
 from firebase_admin import db
 
@@ -8,6 +9,7 @@ from ..models.scores import Score, ScoreRule
 from ..util.string_processing import normalize_string
 
 from ..models.questions import Answer, Grid
+from ..models.state import GameState
 from ..services.gameService.game_data_service import GameDataService
 from ..services.gameService.game_signal_service import GameSignalService
 from ..services.test_service import TestService
@@ -30,6 +32,7 @@ class GameRouter:
         self.router.get("/question/round")(self.get_each_round_questions)
         self.router.get("/question/prefetch")(self.prefetch_question)
         self.router.get("/question/round/packet")(self.get_packets_name)
+        self.router.get("/question/next")(self.send_next_question_to_player)
         self.router.get("/question")(self.send_specific_question)
 
         self.router.post("/grid/cell")(self.set_selected_cell)
@@ -53,6 +56,8 @@ class GameRouter:
         self.router.post("/media/start")(self.play_media)
         self.router.post("/media/stop")(self.stop_media)
 
+        self.router.post("/state/update")(self.update_game_state)
+
         #for player
         self.router.post("/submit")(self.submit_answer)
 
@@ -62,6 +67,7 @@ class GameRouter:
         self.router.post("/multiplayer/invite")(self.send_group_invite)
 
         self.router.post("/multiplayer/start")(self.send_start_multiplayer_game_signal)
+        self.router.post("/multiplayer/resume")(self.resume_multiplayer_game)
         self.router.post("/multiplayer/pause")(self.pause_multiplayer_game)
         self.router.post("/multiplayer/end")(self.end_multiplayer_game)
 
@@ -180,6 +186,19 @@ class GameRouter:
         question = self.game_data_service.send_specific_question_to_player(authenticated_uid, test_name, room_id, round, packet_name, difficulty, question_number, page, limit)
         logger.info(f"Question sent to room {room_id}: {question}")
         return question
+    
+    @handle_exceptions
+    @host_only
+    def send_next_question_to_player(self, request: Request, test_name:str, round: str, room_id: str, packet_name: Optional[str] = None, difficulty: Optional[str] = None, question_number: Optional[int] | None= None, page: Optional[int] | None = None, limit: Optional[int] | None = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        logger.info(f"Requesting question for room {room_id}, round {round}, packet {packet_name}, difficulty {difficulty}, question_number {question_number}, page {page}, limit {limit}")
+        #self.game_data_service.reset_player_answer(room_id)
+        self.game_data_service.get_next_question(authenticated_uid, test_name, room_id, round, packet_name, difficulty, question_number, page, limit)
+        #logger.info(f"Question sent to room {room_id}: {question}")
+        return {
+            "message": "send next question successfully"
+        }
 
     @handle_exceptions
     @host_only                    
@@ -303,10 +322,37 @@ class GameRouter:
         self.game_signal_service.stop_media(room_id)
 
     @handle_exceptions
-    def send_start_multiplayer_game_signal(self, request: Request, room_id: str, test_id: str, current_question_number: Optional[int] = None):
+    async def send_start_multiplayer_game_signal(self, request: Request, room_id: str, test_name: str, play_mode: str):
         user = request.state.user
         authenticated_uid = user["uid"]
-        self.game_signal_service.schedule_timer_multiplayer_game(authenticated_uid,room_id, test_id, current_question_number)
+        logger.info(f"start multiplayer game")
+        if play_mode == "auto":
+            asyncio.create_task(
+                self.game_signal_service.schedule_timer_multiplayer_game(
+                    room_id,
+                    authenticated_uid,
+                    test_name
+                )
+            )
+
+        if play_mode == "manual":
+            self.game_data_service.update_game_state(room_id, 
+                state= {
+                    "phase": "COUNTDOWN"
+                }
+            )
+
+        return {
+            "status": "started",
+            "roomId": room_id
+        }
+    
+    @handle_exceptions
+    @host_only
+    def update_game_state(self, request: Request, room_id: str, state: Dict[str, Any] = Body(...)):
+        
+        self.game_data_service.update_game_state(room_id, state)
+
 
     @handle_exceptions
     @host_only
@@ -314,10 +360,23 @@ class GameRouter:
         self.game_signal_service.pause_timer_multiplayer_game(room_id)
 
     @handle_exceptions
-    def submit_multiplayer_answer(self, request: Request, room_id: str, answer: Answer, group_id: Optional[str] = None):
+    @host_only
+    async def resume_multiplayer_game(self, request: Request, room_id: str, test_name: str):
         user = request.state.user
         authenticated_uid = user["uid"]
-        self.game_data_service.multiplayer_submit_answer(room_id, authenticated_uid, answer, group_id)
+
+        asyncio.create_task(
+        self.game_signal_service.resume_game(room_id, authenticated_uid, test_name)
+        )
+        return {
+            "status": "resume"
+        }
+
+    @handle_exceptions
+    def submit_multiplayer_answer(self, request: Request, room_id: str, answer: Answer, test_name: str, group_id: Optional[str] = None):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+        self.game_data_service.multiplayer_submit_answer(room_id, authenticated_uid, answer, test_name, group_id)
         return {"message": "Answer submitted successfully"}
     
     @handle_exceptions

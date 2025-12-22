@@ -63,6 +63,7 @@ class AuthRouter:
         user = request.state.user
         authenticated_uid = user["uid"]
         is_host_user = await self.auth_service.verify_is_host(authenticated_uid)
+        
 
         return is_host_user
 

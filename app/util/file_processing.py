@@ -1,3 +1,4 @@
+import traceback
 from fastapi import HTTPException, logger
 from fastapi import FastAPI, Depends, UploadFile
 from openpyxl import load_workbook
@@ -216,13 +217,29 @@ async def process_excel_file_for_multiplayer(test_id: str, file: UploadFile, tes
                     "randomKey": random_key
                 }
                 logger.info(f"question_obj: {question_obj}")
+                answer_map = {
+                    "A": str(row[3]),
+                    "B": str(row[4]),
+                    "C": str(row[5]),
+                    "D": str(row[6]),
+                }
+
                 if question_type == "TRAC_NGHIEM":
+                    correct_key = str(row[7]).strip()
+                    correct_value = answer_map.get(correct_key)
                     question_obj.update({
                         "answerA": str(row[3]),
                         "answerB": str(row[4]),
                         "answerC": str(row[5]),
                         "answerD": str(row[6]),
-                        "answer": str(row[7])
+                        "answer": correct_key,
+                        "answer_value": correct_value
+                    })
+                    logger.info(f"question_obj: {question_obj}")
+                if question_type == "TU_LUAN":
+                    question_obj.update({
+                        "answer": str(row[7]),
+                        "answer_value": str(row[7])
                     })
                     logger.info(f"question_obj: {question_obj}")
 
@@ -248,7 +265,7 @@ async def process_excel_file_for_multiplayer(test_id: str, file: UploadFile, tes
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
-        logger.error(f"Error processing custom Excel file: {str(e)}")
+        logger.error(f"Error processing custom Excel file:"+ traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

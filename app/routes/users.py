@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 users_router = APIRouter()
 
 # API: Tạo người dùng
-@users_router.post("/users/")
+@users_router.post("/users/register")
 def create_user(user: User):
     add_user_to_firestore(user.id, user.dict())
     send_realtime_notification({"message": f"User {user.name} has been created"})

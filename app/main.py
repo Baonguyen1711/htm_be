@@ -8,6 +8,7 @@ from app.routes.history import HistoryRouter
 from app.routes.s3 import S3Router
 from app.routes.sound import SoundRouter
 from app.routes.game import GameRouter
+from app.routes.statistics import StatisticsRouter
 
 
 
@@ -69,7 +70,7 @@ app = FastAPI()
 from app.dependencies.router_dependencies import (
     get_s3_service, get_sound_service, get_test_service, get_room_service,
     get_auth_service, get_game_signal_service, get_game_data_service,
-    get_history_service
+    get_history_service, get_statistics_service
 )
 
 # Create routers with manually injected services
@@ -82,6 +83,7 @@ buzz_routers = BuzzRouter(get_game_signal_service())
 game_routers = GameRouter(get_game_data_service(), get_game_signal_service(), get_test_service())
 star_routers = StarRouter()  # This one might not need services
 history_routers = HistoryRouter(get_history_service())
+statistic_router = StatisticsRouter(get_statistics_service())
 
 app.include_router(s3_router.router)
 app.include_router(sound_router.router)
@@ -92,6 +94,7 @@ app.include_router(buzz_routers.router)
 app.include_router(star_routers.router)
 app.include_router(game_routers.router)
 app.include_router(history_routers.router)
+app.include_router(statistic_router.router)
 
 app.add_middleware(
     CORSMiddleware,
