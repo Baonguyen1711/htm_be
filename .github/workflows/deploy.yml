@@ -19,7 +19,7 @@ jobs:
         script: |
           cd ~
           git reset --hard
-          git pull origin refactor
+          git pull origin khoa_luan
           source venv/bin/activate
           pip install --upgrade 
           pip install -r requirements.txt
