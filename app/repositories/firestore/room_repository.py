@@ -17,6 +17,8 @@ class RoomRepository(BaseRepository):
             "roomId": room_id,
             "isPractice": is_practice
         }
+
+        
         return self.create_new_document(room, room_id)
     
     def update_room(self, room_id, data):

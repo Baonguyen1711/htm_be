@@ -1,5 +1,5 @@
-from typing import Optional
-from fastapi import APIRouter, HTTPException, File, UploadFile, Depends
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Body, HTTPException, File, UploadFile, Depends
 from fastapi import FastAPI, UploadFile
 from starlette.requests import Request
 
@@ -32,6 +32,7 @@ class TestRouter:
         self.router.get("/question/random")(self.create_random_question_from_database)
 
         #POST
+        self.router.post("/create")(self.create_new_test)
         self.router.post("/upload")(self.process_file)
         self.router.post("/multiplayer/upload")(self.process_file_for_multiplayer)
         self.router.post("/question/public")(self.public_question)
@@ -43,6 +44,20 @@ class TestRouter:
         self.router.get("/")(self.get_test)
 
 
+    @handle_exceptions
+    @host_only
+    def create_new_test(self, request: Request, config: Dict[str, Any] = Body(...)):
+        user = request.state.user
+        authenticated_uid = user["uid"]
+
+        test_id = self.test_service.create_test(authenticated_uid, config)
+
+        return {
+            "message": "create test successfully",
+            "testId": test_id
+        }
+            
+    
     @handle_exceptions
     @host_only
     def update_question_document(self, request: Request, question_id: str, body: UpdateQuestionBody):

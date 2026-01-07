@@ -759,6 +759,9 @@ class GameDataService:
             self.game_repository.delete_path(f"{room_id}/player_answer/{uid}")
 
 
+    def set_round_mapping(self, room_id: str, round_mapping: Any):
+        self.game_repository.set_round_mapping(room_id, round_mapping)
+
 
 
         

@@ -70,7 +70,7 @@ class TestRepository(BaseRepository):
                 "round": round,
                 "question": q["question"],
                 "answer": q["answer"],
-                "answer_value": q["answer_value"],
+                "answer_value": q.get("answer_value") if q.get("answer_value") else q["answer"],
                 "answerA": q.get("answerA") if q.get("answerA") else None,
                 "answerB": q.get("answerB") if q.get("answerB") else None,
                 "answerC": q.get("answerC") if q.get("answerC") else None,
@@ -138,7 +138,13 @@ class TestRepository(BaseRepository):
         return self.get_documents_by_filter(filters)
     
     def create_test(self, data):
-        return self.create_new_document(data)
+        doc_id = self.create_new_document(data)
+
+        self.update_document(doc_id, {
+            "testId": doc_id
+        })
+
+        return doc_id
     
     def update_test(self, test_id, data):
         self.update_document(test_id, data)

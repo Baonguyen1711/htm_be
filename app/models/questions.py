@@ -13,6 +13,8 @@ class UpdateQuestionBody(BaseModel):
     imgUrl: str | None = None
     round:str | None = None
     test_id: str | None = None
+    time: int | None = None
+    score: int | None = None
 
 class Answer(BaseModel):
     answer: str

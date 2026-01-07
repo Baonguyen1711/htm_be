@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import traceback
 from typing import Any, Dict, List, Optional
@@ -35,6 +36,7 @@ class GameRouter:
         self.router.get("/question/next")(self.send_next_question_to_player)
         self.router.get("/question")(self.send_specific_question)
 
+        self.router.post("/round/mapping")(self.set_round_mapping)
         self.router.post("/grid/cell")(self.set_selected_cell)
         self.router.post("/grid/color")(self.set_cell_color)
         self.router.post("/grid")(self.send_grid_to_player)
@@ -72,6 +74,17 @@ class GameRouter:
         self.router.post("/multiplayer/end")(self.end_multiplayer_game)
 
     
+    @handle_exceptions
+    @host_only
+    def set_round_mapping(self, request: Request, room_id: str, round_mapping: List[int] = Body(...)):
+        logger.info(f"round_mapping {round_mapping}")
+
+        self.game_data_service.set_round_mapping(room_id, round_mapping)
+
+        return {
+            "message": f"add round mapping for room {room_id} successfully"
+        }
+
     @handle_exceptions
     @host_only
     def set_selected_cell(self, request: Request,room_id: str,row_index:str, col_index:str):

@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, UploadFile, Depends
 
 from app.services.firestore_service import upload_test_to_firestore, get_test_by_name, get_test_name_by_user_id, update_question, get_test_by_test_id
 from .cache_service import get_cached_test, set_cached_test, clear_cached_test
-from typing import Optional
+from typing import Any, Optional
 from fastapi import HTTPException, status, Depends
 from ..repositories.firestore.test_repository import TestRepository
 from ..repositories.firestore.question_repository import QuestionRepository
@@ -44,6 +44,18 @@ class TestService:
 
     def get_test_name_by_test_id(self, test_id: str):
         return self.test_repository.get_test_name_by_test_id(test_id)
+    
+    def create_test(self, uid: str, config: Any):
+        data = {
+            **config,
+            "owner": uid,
+            "createdAt": firestore.SERVER_TIMESTAMP
+        }
+        
+        return self.test_repository.create_test(data)
+    
+
+
 
     def process_test_data(self, uid: str, test_name: str):
 

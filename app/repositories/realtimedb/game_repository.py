@@ -269,6 +269,9 @@ class GameRepository(RealTimeBaseRepository):
             "timestamp": int(datetime.datetime.utcnow().timestamp() * 1000)
         })
 
+    def set_round_mapping(self, room_id: str, round_mapping: Any):
+        self.set_to_path(f"{room_id}/round_mapping", round_mapping)
+
         
 
     # def join_group_invite(self, room_id: str, target_player_uid: str, group_id: str) -> None:
