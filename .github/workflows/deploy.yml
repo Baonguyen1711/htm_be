@@ -3,7 +3,7 @@ name: Deploy FastAPI via Git Pull
 on:
   push:
     branches:
-      - refactor 
+      - khoa_luan 
 
 jobs:
   deploy:
