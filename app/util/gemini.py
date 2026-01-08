@@ -1,10 +1,11 @@
 import json
 import re
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 import os
 
-
+load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 print("API_KEY",API_KEY )
 client = genai.Client(api_key=API_KEY)
