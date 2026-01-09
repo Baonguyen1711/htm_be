@@ -4,7 +4,6 @@ import time
 from typing import Any, List
 import bcrypt
 from fastapi import HTTPException, Depends
-from sympy import Dict
 
 from ..models.users import User
 from ..repositories.firestore.room_repository import RoomRepository

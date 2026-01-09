@@ -5,10 +5,9 @@ from fastapi import FastAPI, Depends, UploadFile
 from openpyxl import load_workbook
 from io import BytesIO
 
-from torch import rand
 from ..repositories.firestore.test_repository import TestRepository
 import logging
-from .classify import classify_question
+from .classify import classify_questions_batch
 import random
 from secrets import SystemRandom
 logging.basicConfig(level=logging.INFO)
@@ -188,6 +187,10 @@ async def process_excel_file(test_id: str, file: UploadFile, test_repository: Te
     finally:
         await file.close()
 
+def chunked(lst, size=10):
+    for i in range(0, len(lst), size):
+        yield lst[i:i+size]
+
 async def process_excel_file_for_multiplayer(test_id: str, file: UploadFile, test_repository: TestRepository, is_public: bool):
     contents = await file.read()
     workbook = load_workbook(BytesIO(contents))
@@ -199,11 +202,17 @@ async def process_excel_file_for_multiplayer(test_id: str, file: UploadFile, tes
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
             data = [row for row in sheet.iter_rows(values_only=True)]
-            header = [str(h).strip() for h in data[0]]
+            header = [str(h).strip() for h in data[0]]  
             processed_data = []
-            for row in data[1:]:
+            rows = data[1:]
+            questions = [row[2] for row in rows]
+            categories = []
+            for chunk in chunked(questions, 10):
+                categories.extend(classify_questions_batch(chunk))
+            logger.info(f"categories {categories}")
+            for idx, row in enumerate(rows):
                 question_type = str(row[1]).strip().upper() if row[1] else ""
-                catergory = classify_question(row[2])
+                catergory = categories[idx]
 
                 rand = SystemRandom()  # cryptographically secure generator
                 random_key = rand.random()

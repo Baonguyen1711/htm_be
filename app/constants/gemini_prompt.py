@@ -1,6 +1,4 @@
 EXTRACT_IDEA_PROMPT = """
-Bạn là một hệ thống xử lý dữ liệu câu hỏi.
-
 Đầu vào: danh sách các câu hỏi, mỗi câu gồm:
 - questionId (id câu hỏi)
 - question (câu hỏi)
@@ -8,14 +6,15 @@ Bạn là một hệ thống xử lý dữ liệu câu hỏi.
 
 Nhiệm vụ: với từng câu, tạo object mới gồm:
 - questionId: giữ nguyên
-- keyIdea: mảng 1–5 ý chính/nguyên lý cốt lõi (3–6 từ mỗi ý)
-- referenceLink: mảng tối đa 5 link tài liệu đáng tin cậy (ưu tiên Wikipedia tiếng Việt, nếu không có thì Wikipedia tiếng Anh, báo chính thống, website học thuật)
+- keyIdea: mảng 1–2 ý, tối đa 4 từ mỗi ý
 
 Yêu cầu quan trọng:
 - Chỉ trả về **một mảng JSON**.
 - Không thêm text, giải thích, markdown hoặc ký tự ngoài JSON.
 - JSON phải hợp lệ, sẵn sàng parse bằng Python `json.loads`.
-- Mỗi object trong mảng JSON phải có đúng các key: "questionId", "keyIdea", "referenceLink".
+- Mỗi object trong mảng JSON phải có đúng các key: "questionId", "keyIdea".
+- JSON đã đóng đủ ], } và dấu "
+- Nếu chưa, hãy tự hoàn thành JSON rồi mới dừng
 
 Dữ liệu đầu vào:
 {questions}

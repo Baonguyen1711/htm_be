@@ -13,7 +13,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ACCESS_TOKEN_EXPIRE_SECONDS = 30 * 60  # 30 minutes
+ACCESS_TOKEN_EXPIRE_SECONDS = 3* 60 * 60  # 30 minutes
 REFRESH_TOKEN_EXPIRE_SECONDS = 7 * 24 * 60 * 60  # 7 days (was incorrectly 4 hours)
 
 class AuthService:
@@ -149,11 +149,13 @@ class AuthService:
             payload = pyjwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("userId")
             room_id = payload.get("roomId")
+            test_name = payload.get("testName") or ""
             role = payload.get("role")
 
             access_payload = {
                 "userId": user_id,
                 "roomId": room_id,
+                "testName": test_name,
                 "role": role,
                 "exp": time.time() + ACCESS_TOKEN_EXPIRE_SECONDS
             }

@@ -6,6 +6,7 @@ from ...constants.gemini_prompt import EXTRACT_IDEA_PROMPT
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+import time
 import random
 
 class TestRepository(BaseRepository):
@@ -30,26 +31,42 @@ class TestRepository(BaseRepository):
         return test_data.get("owner")
     
     def extract_idea_and_link(self, questions_and_answers):
-        
-        questions_json = json.dumps(questions_and_answers, ensure_ascii=False)
-        prompt_filled = EXTRACT_IDEA_PROMPT.replace("{questions}", questions_json)
-        print("prompt filled", prompt_filled)
+        results = []
 
-        data = prompting(prompt_filled)
+        for item in questions_and_answers:
+            prompt = EXTRACT_IDEA_PROMPT.replace(
+                "{questions}",
+                json.dumps([item], ensure_ascii=False)
+            )
 
-        # Loại bỏ ```json ``` nếu có
-        # cleaned_text = re.sub(r"^```(json)?|```$", "", raw_text.strip(), flags=re.MULTILINE).strip()
-        print("data", data)
-    
-        # try:
-        #     data = json.loads(raw_text)
-        #     print("data",data)
-        # except json.JSONDecodeError as e:
-        #     print("JSON parse error:", e)
-        #     print("Raw text from Gemini:", repr(raw_text))
-        #     raise e
+            for _ in range(2):  # retry 1 lần
+                raw = prompting(prompt)
+                try:
+                    parsed = json.loads(raw)
+                    results.append(parsed[0])
+                    break
+                except json.JSONDecodeError:
+                    time.sleep(0.7)
 
-        return data
+        return results
+
+    # def extract_idea_and_link(self, questions_and_answers):
+    #     results = []
+    #     def chunked(lst, size=10):
+    #         for i in range(0, len(lst), size):
+    #             yield lst[i:i+size]
+
+    #     for chunk in chunked(questions_and_answers, 3):  # 🔥 2–3 là tối ưu
+    #         questions_json = json.dumps(chunk, ensure_ascii=False)
+    #         prompt = EXTRACT_IDEA_PROMPT.replace("{questions}", questions_json)
+
+    #         data = prompting(prompt)
+    #         parsed = json.loads(data)
+    #         results.extend(parsed)
+
+    #         time.sleep(0.5)  # 🔥 bắt buộc
+
+    #     return results
     
     def set_test_by_batch(self, questions, test_id, round):
         batch = self.database.batch()
@@ -100,24 +117,23 @@ class TestRepository(BaseRepository):
 
         self.update_test(test_id, {"totalQuestions": len(questions)})
 
-        print("local_questions_and_answers",local_questions_and_answers)
-        ideas_and_link = []
-        try:
-            ideas_and_link = self.extract_idea_and_link(local_questions_and_answers)
-        except Exception as e:
-            print("Error khi extract idea:", e)
-            ideas_and_link = []
+        # print("local_questions_and_answers",local_questions_and_answers)
+        # ideas_and_link = []
+        # try:
+        #     ideas_and_link = self.extract_idea_and_link(local_questions_and_answers)
+        # except Exception as e:
+        #     print("Error khi extract idea:", e)
+        #     ideas_and_link = []
 
-        update_batch = self.database.batch()
-        for item in ideas_and_link:
-            question_ref = self.database.collection("questions").document(item["questionId"])
-            update_batch.update(question_ref, {
-                "keyIdea": item.get("keyIdea"),
-                "referenceLink": item.get("referenceLink")
-            })
+        # update_batch = self.database.batch()
+        # for item in ideas_and_link:
+        #     question_ref = self.database.collection("questions").document(item["questionId"])
+        #     update_batch.update(question_ref, {
+        #         "keyIdea": item.get("keyIdea"),
+        #     })
 
-        update_batch.commit()
-        print(f"Đã thêm idea và link cho {len(ideas_and_link)} câu hỏi")
+        # update_batch.commit()
+        # print(f"Đã thêm idea cho {len(ideas_and_link)} câu hỏi")
 
 
         return {

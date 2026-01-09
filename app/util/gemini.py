@@ -20,7 +20,7 @@ def prompting(input):
             contents=input,
             config=types.GenerateContentConfig(
                 temperature=0,
-                max_output_tokens=2
+                max_output_tokens=100
             )
         )
         if not response.candidates:

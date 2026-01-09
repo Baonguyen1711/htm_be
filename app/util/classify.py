@@ -1,56 +1,68 @@
-from transformers import pipeline, XLMRobertaTokenizer
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-from functools import lru_cache
-
-MODEL_NAME = "joeddav/xlm-roberta-large-xnli"
-
-@lru_cache(maxsize=1)
-def get_classifier():
-    # explicitly load slow tokenizer
-    tokenizer = XLMRobertaTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
-
-    return pipeline(
-        "zero-shot-classification",
-        model=MODEL_NAME,
-        tokenizer=tokenizer
-    )
-
-
-# Candidate subject labels
-candidate_labels = [
-    "Câu hỏi về Toán học",
-    "Câu hỏi về Vật lý",
-    "Câu hỏi về Hóa học",
-    "Câu hỏi về Sinh học, động vật và thực vật",
-    "Câu hỏi về Lịch sử",
-    "Câu hỏi về Nghệ thuật, văn hóa",
-    "Câu hỏi về Địa lý",
-    "Câu hỏi về Văn học",
-    "Câu hỏi về Tiếng Anh"
+from .gemini import prompting
+import json
+import re
+CANDIDATE_LABELS = [
+    "Toán học",
+    "Vật lý",
+    "Hóa học",
+    "Sinh học, động vật và thực vật",
+    "Lịch sử",
+    "Nghệ thuật, văn hóa",
+    "Địa lý",
+    "Văn học",
+    "Tiếng Anh"
 ]
+def classify_questions_batch(questions: list[str]) -> list[str]:
+    """
+    Nhận vào list câu hỏi
+    Trả về list category cùng thứ tự
+    """
 
-# Confidence threshold for fallback
-CONFIDENCE_THRESHOLD = 0.5
-FALLBACK_LABEL = "Kiến thức chung"
+    if not questions:
+        return []
 
-def classify_question(question):
-    classifier = get_classifier()
-    r = classifier(question, candidate_labels, multi_label=False)
-    best_label, best_score = r['labels'][0], r['scores'][0]
+    # 1️⃣ Build prompt
+    prompt = f"""
+- Với mỗi câu hỏi dưới đây, hãy gán CHÍNH XÁC 1 chủ đề
+- Chỉ được chọn từ danh sách sau:
+{json.dumps(CANDIDATE_LABELS, ensure_ascii=False)}
 
-    # Apply fallback if confidence too low
-    # if best_score < CONFIDENCE_THRESHOLD:
-    #     final_label = FALLBACK_LABEL
-    #     final_score = best_score
-    # else:
-    #     final_label = best_label
-    #     final_score = best_score
+output:
+- Trả về JSON array
+- Mỗi phần tử tương ứng với 1 câu hỏi
+- KHÔNG giải thích
+- KHÔNG markdown
 
-    print(f"\nCâu hỏi: {question}")
-    print(f"-> Chủ đề ban đầu: {best_label} (độ tin cậy: {best_score:.2f})")
-    # print(f"-> Chủ đề dự đoán: {final_label} (độ tin cậy: {final_score:.2f})")
+Ví dụ:
+["Toán học", "Vật lý"]
 
-    # ✅ FIX HERE
-    return best_label 
+Danh sách câu hỏi:
+"""
 
+    for i, q in enumerate(questions, start=1):
+        prompt += f"{i}. {q}\n"
+    logger.info(f"prompt{prompt}")
 
+    # 2️⃣ Gọi Gemini
+    raw = prompting(prompt)
+    logger.info(f"raw {raw}")
+    # 3️⃣ Parse kết quả
+    try:
+        clean = re.sub(r"```json|```", "", raw).strip()
+        labels = json.loads(clean)
+        logger.info(f"labels{labels}")
+
+        # fallback nếu length không khớp
+        if len(labels) != len(questions):
+            raise ValueError("Length mismatch")
+
+        return labels
+
+    except Exception as e:
+        print("Parse error:", e)
+        # fallback toàn bộ
+        return ["Kiến thức chung"] * len(questions)
