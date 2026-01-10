@@ -110,6 +110,10 @@ app.add_middleware(
 def read_root():
     return {"message": "Welcome to FastAPI with Firestore and Realtime DB"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 @app.middleware("http")
 async def dispatch(request: Request, call_next):
