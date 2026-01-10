@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends
+import socket
 from app.routes.tests import TestRouter
 from app.routes.rooms import RoomRouter
 from app.routes.auth import AuthRouter
@@ -98,7 +99,7 @@ app.include_router(statistic_router.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://28a2-2402-9d80-a50-f638-115b-68ac-7642-3852.ngrok-free.app"],  # Specify allowed origins
+    allow_origins=["http://localhost:3000", "https://28a2-2402-9d80-a50-f638-115b-68ac-7642-3852.ngrok-free.app", "https://www.htmnbk.site"],  # Specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],  # Specify allowed methods
     allow_headers=["*"],  # Specify allowed headers
@@ -114,13 +115,19 @@ def read_root():
 def health():
     return {"status": "ok"}
 
+@app.get("/whoami")
+def whoami():
+    return {
+        "hostname": socket.gethostname()
+    }
+
 
 @app.middleware("http")
 async def dispatch(request: Request, call_next):
     # Skip middleware for preflight OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
-    if request.url.path in ["/health","/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
+    if request.url.path in ["/whoami", "/health","/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
     
