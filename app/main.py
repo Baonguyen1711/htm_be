@@ -120,7 +120,7 @@ async def dispatch(request: Request, call_next):
     # Skip middleware for preflight OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
-    if request.url.path in ["/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
+    if request.url.path in ["/health","/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
     
