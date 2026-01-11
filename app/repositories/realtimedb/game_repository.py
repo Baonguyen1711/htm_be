@@ -137,8 +137,14 @@ class GameRepository(RealTimeBaseRepository):
     def get_round_rules(self, room_id: str, round_number: str) -> Dict[str, Any]:
         return self.read_from_path(f"{room_id}/round_rules/{round_number}")
     
-    def set_round_2_grid(self, room_id: str, grid: List[List[str]]) -> None:
-        self.set_to_path(f"{room_id}/grid", grid)
+    def set_round_2_grid(self, room_id: str, grid: List[List[str]], marked_characters_index: Any) -> None:
+        marked_characters = {}
+        if marked_characters_index is not None:
+            marked_characters = json.loads(marked_characters_index)
+        self.set_to_path(f"{room_id}/grid", {
+            "grid": grid,
+            "marked_characters_index": marked_characters
+        })
     
     def set_selected_cell(self,room_id: str, row_index: str, col_index:str):
         self.set_to_path(f"{room_id}/cell", {"rowIndex": row_index, "colIndex": col_index})

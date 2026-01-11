@@ -98,8 +98,8 @@ class GameRouter:
 
     @handle_exceptions
     @host_only
-    def send_grid_to_player(self, request: Request, room_id: str, grid: Grid):
-        self.game_data_service.send_grid(room_id, grid.grid)
+    def send_grid_to_player(self, request: Request, room_id: str, grid: Grid, marked_characters_index: Optional[str] = None):
+        self.game_data_service.send_grid(room_id, grid.grid, marked_characters_index)
 
     @handle_exceptions
     @host_only

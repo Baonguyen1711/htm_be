@@ -40,8 +40,8 @@ class GameDataService:
         self.send_question_to_player(room_id,question_without_answer)
         return question
 
-    def send_grid(self, room_id: str, grid: List[List[str]]):
-        self.game_repository.set_round_2_grid(room_id, grid)
+    def send_grid(self, room_id: str, grid: List[List[str]], marked_characters_index):
+        self.game_repository.set_round_2_grid(room_id, grid, marked_characters_index)
 
     def send_selected_cell(self, room_id: str, row_index: str, col_index:str):
         self.game_repository.set_selected_cell(room_id, row_index, col_index)
