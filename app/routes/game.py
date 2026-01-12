@@ -223,9 +223,9 @@ class GameRouter:
 
     @handle_exceptions
     @host_only
-    def send_start_time_signal(self, request: Request, room_id: str):
+    def send_start_time_signal(self, request: Request, room_id: str, time_duration: Optional[int] = None):
         logger.info("Attempting to start time")
-        self.game_signal_service.set_start_time(room_id)
+        self.game_signal_service.set_start_time(room_id, time_duration)
         logger.info("time started")
     
     @handle_exceptions

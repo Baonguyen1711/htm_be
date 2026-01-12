@@ -58,8 +58,8 @@ class GameSignalService:
     def close_buzz(self, room_id: str):
         self.game_repository.close_buzz(room_id)
 
-    def set_start_time(self, room_id) -> None:
-        self.game_repository.start_time(room_id)
+    def set_start_time(self, room_id, time_duration) -> None:
+        self.game_repository.start_time(room_id,time_duration)
 
     def show_rules(self, room_id: str, round_number: str):
         self.game_repository.show_rules(room_id, round_number)

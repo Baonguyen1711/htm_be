@@ -193,9 +193,13 @@ class GameRepository(RealTimeBaseRepository):
             "grid": grid.grid
         })
 
-    def start_time(self, room_id:str):
+    def start_time(self, room_id:str, time_duration):
         logger.info(f"room_id {room_id}")
-        self.set_to_path(f"{room_id}/times", int(datetime.datetime.utcnow().timestamp() * 1000))
+        time = time_duration if time_duration is not None else 0
+        self.set_to_path(f"{room_id}/times", {
+            "started": int(datetime.datetime.utcnow().timestamp() * 1000),
+            "duration": time
+        })
 
     def show_rules(self, room_id: str, round_number: str):
         self.set_to_path(f"{room_id}/showRules", {
