@@ -45,6 +45,7 @@ class GameRouter:
         self.router.post("/packet/set")(self.set_selected_packet_name)
         self.router.post("/packet/used")(self.set_used_packet_name)
         self.router.post("/packet/return")(self.set_return_to_packet_selection)
+        self.router.post("/packet/send")(self.send_packets_name)
         self.router.post("/answer")(self.send_answer)
         self.router.post("/round/start")(self.send_start_round_signal)
         self.router.post("/time")(self.send_start_time_signal)
@@ -184,8 +185,10 @@ class GameRouter:
             "prefetch": True
         }
     
-    def send_packets_name(self, request: Request, room_id: str, test_name: str):
-        self.game_data_service.send_packet_name_to_player
+    @handle_exceptions
+    @host_only
+    def send_packets_name(self, request: Request, room_id: str, packet_names: List[str] = Body(...)):
+        self.game_data_service.send_packet_name_to_player(packet_names, room_id)
 
 
 

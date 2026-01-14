@@ -25,6 +25,7 @@ class AuthRouter:
         self.router.post("/verify")(self.verify_room_token)
         self.router.post("/refresh")(self.refresh_access_token)
         self.router.post("/isHost")(self.verify_is_host)
+        self.router.post("/isAdmin")(self.verify_is_admin)
         self.router.post("/token")(self.authenticate)
         self.router.post("/logout")(self.logout)
 
@@ -66,6 +67,12 @@ class AuthRouter:
         
 
         return is_host_user
+    
+    @handle_exceptions
+    async def verify_is_admin(self, request: Request):
+        is_admin = await self.auth_service.verify_admin(request)
+        
+        return is_admin
 
     @handle_exceptions
     async def authenticate(self, request: Request, response: Response):

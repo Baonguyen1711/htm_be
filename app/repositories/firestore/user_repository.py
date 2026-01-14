@@ -13,6 +13,22 @@ class UserRepository(BaseRepository):
         users = self.get_document(user_id)
 
         return users
+    
+    def create_user(self, email: str, role: str, uid: str):
+        user_object = {
+            "email": email,
+            "role": role,
+            "uid": uid   
+        }
+        self.create_new_document(user_object, uid)
+
+        return user_object
+    
+    def get_users(self):
+        users = self.get_all_documents()
+        return users
+
+
 
     
     

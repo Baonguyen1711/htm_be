@@ -4,6 +4,7 @@ from firebase_admin import auth
 from ..repositories.firestore.room_repository import RoomRepository
 from ..repositories.firestore.user_repository import UserRepository
 # FIXED: Import from service_dependencies instead of router_dependencies to break circular import
+from ..helper.promote_user import promote_user_to_host
 from ..dependencies.service_dependencies import get_room_repository, get_user_repository
 import jwt as pyjwt
 import time
@@ -216,3 +217,26 @@ class AuthService:
         except Exception as e:
             logger.error(f"Authentication error: {str(e)}")
             return None, {"error": str(e)}
+        
+    async def verify_admin(self, request: Request):
+        data = await request.json()
+        id_token = data.get("token")
+
+        try:
+
+            decoded_token = auth.verify_id_token(id_token)
+            logger.info(f"decoded_token for admin {decoded_token}")
+
+            is_admin = decoded_token["role"] == "admin"  
+            
+            return is_admin
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
+            return False
+        
+    def create_normal_user(self, email: str, uid: str):
+        return self.user_repository.create_user(email, "player", uid)
+
+    def create_host_user(self, email: str, uid: str):
+        promote_user_to_host(uid)
+        return self.user_repository.create_user(email, "host", uid)

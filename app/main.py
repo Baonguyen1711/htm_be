@@ -23,10 +23,13 @@ from firebase_admin import auth, credentials
 
 import os
 import logging
-
+from dotenv import load_dotenv
+load_dotenv()
 logger = logging.getLogger(__name__)
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 DATABASE_URL = os.getenv('DATABASE_URL')
+logger.info(f"DATABASE_URL {DATABASE_URL}")
+
 if not firebase_admin._apps:
     cred = credentials.Certificate(SERVICE_ACCOUNT_FILE)
     firebase_admin.initialize_app(cred, {
@@ -127,7 +130,7 @@ async def dispatch(request: Request, call_next):
     # Skip middleware for preflight OPTIONS requests
     if request.method == "OPTIONS":
         return await call_next(request)
-    if request.url.path in ["/whoami", "/health","/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
+    if request.url.path in ["/whoami", "/health","/api/auth/isAdmin", "/api/auth/token", "/api/room/validate", "/api/room/info", "/api/auth/verify","/api/room/spectator/join", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
     

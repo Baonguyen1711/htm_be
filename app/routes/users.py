@@ -1,23 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from app.helper.exception import handle_exceptions
 from app.models import User
-from app.services.firestore_service import add_user_to_firestore, get_user_from_firestore
-from app.services.realtime_service import send_realtime_notification
+from app.services.auth_service import AuthService
+from ..dependencies.router_dependencies import get_auth_service
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 users_router = APIRouter()
 
-# API: Tạo người dùng
-@users_router.post("/users/register")
-def create_user(user: User):
-    add_user_to_firestore(user.id, user.dict())
-    send_realtime_notification({"message": f"User {user.name} has been created"})
-    return {"message": "User created successfully", "user": user.dict()}
+class AuthRouter:
+    def __init__(self, auth_service: AuthService = None):
+        # FIXED: Accept actual service instance, not Depends() object
+        self.auth_service = auth_service or get_auth_service()
 
-# API: Lấy thông tin người dùng
-@users_router.get("/users/{user_id}")
-def read_user(user_id: str):
-    user = get_user_from_firestore(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+        self.router = APIRouter(prefix="/api/users")
+
+        self.router.post("/create/host")(self.create_new_host_user)
+        self.router.post("/create")(self.create_new_normal_user)
+
+    
