@@ -449,6 +449,7 @@ class GameDataService:
             )
             if matched_player:
                 matched_player["score"] += score_rules[f"round{round}"]
+                matched_player["is_correct"] = True
                 matched_player["round_scores"][int(round)] += score_rules[f"round{round}"]
                 
                 self.set_single_player_answer(room_id, matched_player["uid"], matched_player)
