@@ -27,6 +27,7 @@ class AuthRouter:
         self.router.post("/isHost")(self.verify_is_host)
         self.router.post("/isAdmin")(self.verify_is_admin)
         self.router.post("/token")(self.authenticate)
+        self.router.post("/mc_token")(self.generate_mc_token)
         self.router.post("/logout")(self.logout)
 
     @handle_exceptions
@@ -51,7 +52,12 @@ class AuthRouter:
     async def verify_room_token(self, request: Request):
         payload = await self.auth_service.verify_room_token(request)
         return payload
-        
+    
+    @handle_exceptions
+    async def generate_mc_token(self, request: Request):
+        token = await self.auth_service.generate_mc_token(request)
+        return token
+
     @handle_exceptions
     async def refresh_access_token(self, request: Request):
         access_token = await self.auth_service.refresh_access_token(request)

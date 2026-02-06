@@ -118,6 +118,66 @@ class AuthService:
         return access_token, refresh_token
 
 
+    async def generate_mc_token(self, request):
+        SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+        data = await request.json()
+        room_id = data.get("roomId")
+        test_name = data.get("testName")
+        room_mode = data.get("roomMode")
+        allowed_role = "MC" 
+        user = request.state.user
+        user_id = user["uid"]
+        logger.info(f"userId {user_id}")
+        allowed_room_id = self.room_repository.get_rooms_by_user_id(user_id)
+        logger.info(f"allowed_room_id {allowed_room_id}")
+        # rooms = []
+
+        # for room_data in allowed_room_id:
+        #     rooms.append({
+        #         "roomId": room_data.get("id"),         
+        #         "isActive": room_data.get("isActive", False)  
+        #     })
+
+        logger.info(f"allowed_room_id {allowed_room_id}")
+        is_host_user = self.user_repository.is_logged_in_user(user_id)
+        logger.info(f"is_host_user {is_host_user}")
+
+        exists = any(room["roomId"] == room_id for room in allowed_room_id)
+
+        if not room_id:
+            raise HTTPException(400, "Missing roomId")
+
+        if not exists:
+            raise HTTPException(status_code=403, detail="You do not have access to this room")
+
+
+        # Calculate expiration times
+        access_exp_time = time.time() + ACCESS_TOKEN_EXPIRE_SECONDS
+        refresh_exp_time = time.time() + REFRESH_TOKEN_EXPIRE_SECONDS
+
+        access_payload = {
+            "roomId": room_id,
+            "allowedRole": allowed_role,
+            "roomHostId": user_id,
+            "testName": test_name,
+            "roomMode": room_mode,
+            "exp": access_exp_time
+        }
+        access_payload = {k: v for k, v in access_payload.items() if not (k == "roomMode" and v == "room")} # normal room does not have roomMode in query params
+
+        access_token = pyjwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
+
+        
+
+        # Log token expiration times for debugging
+        logger.info(f"Generated tokens for user {user_id} (role: {allowed_role}) in room {room_id}")
+        logger.info(f"Access token expires at: {time.ctime(access_exp_time)} (in {ACCESS_TOKEN_EXPIRE_SECONDS/60} minutes)")
+        logger.info(f"Refresh token expires at: {time.ctime(refresh_exp_time)} (in {REFRESH_TOKEN_EXPIRE_SECONDS/3600} hours)")
+        
+
+        return access_token
+
 
 
 

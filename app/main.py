@@ -102,7 +102,7 @@ app.include_router(statistic_router.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://28a2-2402-9d80-a50-f638-115b-68ac-7642-3852.ngrok-free.app", "https://www.htmnbk.site"],  # Specify allowed origins
+    allow_origins=["http://localhost:3000", "https://07c60eaa8d78.ngrok-free.app", "https://www.htmnbk.site", "http://192.168.4.4:3000"],  # Specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],  # Specify allowed methods
     allow_headers=["*"],  # Specify allowed headers

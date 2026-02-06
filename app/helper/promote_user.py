@@ -3,8 +3,8 @@ from firebase_admin import credentials, auth
 import os
 from dotenv import load_dotenv
 
-# uid = "TaqLubNJHzVCnO8Ryqiy923AAG82"
-# load_dotenv()
+uid = "IBiR8kZCkPQj0maSO8tLIgND3n12"
+load_dotenv()
 
 # SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 
 def promote_user_to_host(uid:str):
     auth.set_custom_user_claims(uid, {
-        "role": "host"
+        "role": "MC",
+        "roomId": "211123"
     })
 
 def create_new_user(email: str, password: str):
@@ -34,4 +35,4 @@ def create_new_user(email: str, password: str):
 # promote_user_to_host(uid)
     
 
-# print("Admin granted")
+# print(f"role granted for {uid}")
